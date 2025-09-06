@@ -24,6 +24,10 @@ get a feel for bare metal programming and build your own operating system from t
 
 TODO: Add instructions on minimal steps to build and run locally (QEMU and hardware)
 
+### Building the Kernel
+
+TODO: User a Dockerfile for a consistent build environment?
+
 ### Qemu (WIP)
 
 TODO: How to start the kernel in QEMU?
