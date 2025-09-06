@@ -1,7 +1,5 @@
 # kruspix
 
-## Introduction
-
 Kruspix is a hands-on, educational kernel for the Raspberry Pi, written in Rust. This project is designed to help you
 get a feel for bare metal programming and build your own operating system from the ground up.
 
