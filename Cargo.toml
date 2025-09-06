@@ -1,6 +1,18 @@
 [package]
 name = "kruspix"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 
+[[bin]]
+name = "kruspix"
+bench = false
+test = false
+
 [dependencies]
+
+[profile.release]
+panic = "abort"
+
+[profile.dev]
+panic = "abort"
+opt-level = 2
