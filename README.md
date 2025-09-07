@@ -142,6 +142,8 @@ TODO: How to start the kernel in QEMU?
 ### Raspberry Pi and ARM
 
 - [Raspberry Pi Documentation](https://www.raspberrypi.com/documentation/)
+- [Raspberry Pi Firmware](https://github.com/raspberrypi/firmware)
+- [BCM2835 ARM Peripherals](https://datasheets.raspberrypi.com/bcm2835/bcm2835-peripherals.pdf)
 - [BCM2836 ARM-local peripherals](https://datasheets.raspberrypi.com/bcm2836/bcm2836-peripherals.pdf)
 - [Cortex-A53 MPCore Processor Technical Reference Manual](https://developer.arm.com/documentation/ddi0500/latest/)
 - [BCM2711 ARM Peripherals](https://datasheets.raspberrypi.com/bcm2711/bcm2711-peripherals.pdf)

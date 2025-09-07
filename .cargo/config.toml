@@ -7,4 +7,4 @@ rustflags = [
     "-C", "target-cpu=cortex-a53",
     "-C", "target-feature=+neon"
 ]
-runner = "qemu-system-aarch64 -machine virt -cpu cortex-a53 -nographic -kernel"
+runner = "qemu-system-aarch64 -machine raspi3b -kernel"
