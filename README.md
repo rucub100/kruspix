@@ -16,15 +16,30 @@ get a feel for bare metal programming and build your own operating system from t
     ```shell
     rustup target add aarch64-unknown-none
     ```
-- Install [`cargo-binutils`](https://github.com/rust-embedded/cargo-binutils#cargo-binutils) for using `llvm-objcopy` and other tools:
+- Install [cargo-binutils](https://github.com/rust-embedded/cargo-binutils#cargo-binutils) for using `llvm-objcopy` and other tools:
     ```shell
     cargo install cargo-binutils
     rustup component add llvm-tools
     ```
-- [Raspberry Pi Imager](https://www.raspberrypi.com/software/): Install Kruspix OS to a microSD card
-- [QEMU](https://www.qemu.org/): Required for emulating the Raspberry Pi and testing the kernel without real hardware.
+- [Raspberry Pi Imager](https://www.raspberrypi.com/software/): To install kruspix OS to a microSD card
+- [QEMU](https://www.qemu.org/): Required for emulating the Raspberry Pi and testing the kernel without real hardware
 
 ## Getting Started (WIP)
+
+### Project Structure (WIP)
+
+`src/`:
+- `arch/`: Architecture-specific code (e.g., ARM64) - boot, memory, CPU, interrupts, MMU, SMP, platform SoCs
+- `docs`: Documentation and design notes
+- `drivers/`: Device drivers (e.g., UART, GPIO)
+- `init/`: Kernel initialization code
+- `ipc/`: Inter-process communication mechanisms
+- `kernel/`: Core kernel components (e.g., scheduler, locking)
+- `lib/`: Common libraries and utilities
+- `mm/`: Memory management (e.g., paging, allocators)
+- `net/`: Networking stack
+- `scripts/`: Scripts for automation
+- `tools/`: Tools
 
 TODO: Add instructions on minimal steps to build and run locally (QEMU and hardware)
 
