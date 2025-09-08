@@ -7,7 +7,7 @@ use core::ptr::write_volatile;
 // This is just a placeholder; you'd need the full font data.
 // https://github.com/ercanersoy/PSF-Fonts
 // GNU GPL v2
-static FONT: &[u8] = include_bytes!("font.bin"); // We'll need a font file
+static FONT: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib/fonts/font.bin")); // We'll need a font file
 
 pub struct Framebuffer {
     pub width: u32,

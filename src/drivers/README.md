@@ -23,3 +23,4 @@
 - `char/`: Character devices
 - `block/`: Block devices
 - `tty/`: Text input/output devices
+- `watchdog/`: Watchdog timers

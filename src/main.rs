@@ -10,10 +10,14 @@ mod panic_handler;
 #[path = "arch/arm64/kernel/entry.rs"]
 mod entry;
 
+#[path = "drivers/mailbox/mailbox.rs"]
 mod mailbox;
+#[path = "drivers/video/framebuffer.rs"]
 mod framebuffer;
 
 static HELLO: &[u8] = b"Hello World?";
+
+// TODO: move this to the watchdog driver
 // BCM2837 Watchdog Timer registers
 const PM_WDOG_BASE: u32 = 0x3F100000;
 const PM_RSTC: *mut u32 = (PM_WDOG_BASE + 0x1c) as *mut u32;
