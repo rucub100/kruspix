@@ -2,25 +2,26 @@
 
 ## Structure
 
-- `gpio/`: General-purpose I/O
-- `spi/`: SPI bus and device
-- `pwm/`: Pulse-width modulation
-- `mailbox/`: Mailbox communication
-- `i2c/`: I2C bus
-- `mmc/`: MMC/SD card
-- `usb/`: Universal Serial Bus
-- `net/` : Networking devices
-- `clk/`: Clock management
-- `firmware/`: Firmware
-- `leds/`: LED control
-- `rtc/`: Real-time clock
-- `gpu/`: Graphics processing unit
-- `video/`: Video output
-- `power/`: Power management
-- `input/`: Input devices
-- `thermal/`: Thermal management
+- `block/`: Block devices
 - `bluetooth/`: Bluetooth devices
 - `char/`: Character devices
-- `block/`: Block devices
+- `clk/`: Clock management
+- `devicetree/`: Device tree support
+- `firmware/`: Firmware
+- `gpio/`: General-purpose I/O
+- `gpu/`: Graphics processing unit
+- `i2c/`: I2C bus
+- `input/`: Input devices
+- `leds/`: LED control
+- `mailbox/`: Mailbox communication
+- `mmc/`: MMC/SD card
+- `net/` : Networking devices
+- `power/`: Power management
+- `pwm/`: Pulse-width modulation
+- `rtc/`: Real-time clock
+- `spi/`: SPI bus and device
+- `thermal/`: Thermal management
 - `tty/`: Text input/output devices
+- `usb/`: Universal Serial Bus
+- `video/`: Video output
 - `watchdog/`: Watchdog timers
