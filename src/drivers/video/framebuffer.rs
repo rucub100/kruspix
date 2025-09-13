@@ -1,6 +1,6 @@
 // src/framebuffer.rs
 
-use crate::mailbox::{mailbox_call, MessageBuffer};
+use crate::bcm2835_mailbox::{mailbox_call, MessageBuffer};
 use core::ptr::write_volatile;
 
 // A simple 8x16 font embedded in the code.

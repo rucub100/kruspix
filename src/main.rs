@@ -10,8 +10,8 @@ mod panic_handler;
 #[path = "arch/arm64/kernel/entry.rs"]
 mod entry;
 
-#[path = "drivers/mailbox/mailbox.rs"]
-mod mailbox;
+#[path = "drivers/mailbox/bcm2835_mailbox.rs"]
+mod bcm2835_mailbox;
 #[path = "drivers/video/framebuffer.rs"]
 mod framebuffer;
 
