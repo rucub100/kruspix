@@ -15,4 +15,4 @@ panic = "abort"
 
 [profile.dev]
 panic = "abort"
-opt-level = 2
+opt-level = 0
