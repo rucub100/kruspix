@@ -6,7 +6,6 @@
 - `bluetooth/`: Bluetooth devices
 - `char/`: Character devices
 - `clk/`: Clock management
-- `devicetree/`: Device tree support
 - `firmware/`: Firmware
 - `gpio/`: General-purpose I/O
 - `gpu/`: Graphics processing unit
