@@ -3,6 +3,7 @@
 
 use crate::bcm2835_wdt::bcm2835_wdt_disable;
 use crate::framebuffer::{init_framebuffer, print};
+use crate::setup::setup_arch;
 
 mod panic_handler;
 
@@ -10,19 +11,22 @@ mod panic_handler;
 #[path = "arch/arm64/kernel/entry.rs"]
 mod entry;
 
+#[cfg(target_arch = "aarch64")]
+#[path = "arch/arm64/kernel/setup.rs"]
+mod setup;
+
 #[path = "drivers/mailbox/bcm2835_mailbox.rs"]
 mod bcm2835_mailbox;
-#[path = "drivers/video/framebuffer.rs"]
-mod framebuffer;
 #[path = "drivers/watchdog/bcm2835_wdt.rs"]
 mod bcm2835_wdt;
+#[path = "drivers/video/framebuffer.rs"]
+mod framebuffer;
+mod kernel;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn start_kernel() -> ! {
-    // TODO: test new impl on real hardware
-    bcm2835_wdt_disable();
-
     // TODO: Arch-specific setup (device tree, etc)
+    setup_arch();
     // TODO: SMP system setup (CPU setup)
     // TODO: memory management setup
     // TODO: interrupts/exceptions setup
@@ -33,6 +37,10 @@ pub extern "C" fn start_kernel() -> ! {
     // TODO: Enable interrupts and start normal operation
 
     init_framebuffer();
+
+    // TODO: test new impl on real hardware
+    bcm2835_wdt_disable();
+
     print("Hello world!");
 
     loop {

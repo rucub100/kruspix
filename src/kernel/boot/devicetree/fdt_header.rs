@@ -2,7 +2,7 @@
 /// Representation of the Flattened Device Tree (FDT) header.
 ///
 /// All fields are in big-endian format as per the DTSpec 0.4.
-#[repr(C)]
+#[repr(C, align(8))]
 pub struct FdtHeader {
     magic: u32,
     total_size: u32,
@@ -17,6 +17,11 @@ pub struct FdtHeader {
 }
 
 impl FdtHeader {
+    pub fn from_addr(addr: usize) -> Self {
+        let ptr = addr as *const FdtHeader;
+        unsafe { ptr.read() }
+    }
+
     pub fn is_valid(&self) -> bool {
         u32::from_be(self.magic) == 0xd00dfeed
     }

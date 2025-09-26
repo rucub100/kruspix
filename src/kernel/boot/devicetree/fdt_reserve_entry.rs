@@ -1,5 +1,5 @@
 /// Representation of a reserved memory entry in a Flattened Device Tree (FDT).
-#[repr(C), align(8)]
+#[repr(C, align(8))]
 pub struct FdtReserveEntry {
     address: u64,
     size: u64,
