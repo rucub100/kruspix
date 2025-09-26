@@ -22,6 +22,16 @@ pub extern "C" fn start_kernel() -> ! {
     // TODO: test new impl on real hardware
     bcm2835_wdt_disable();
 
+    // TODO: Arch-specific setup (device tree, etc)
+    // TODO: SMP system setup (CPU setup)
+    // TODO: memory management setup
+    // TODO: interrupts/exceptions setup
+    // TODO: Scheduler setup
+    // TODO: Initialize other kernel modules
+    // TODO: Initialize device drivers
+    // TODO: setup root user space process a.k.a. init
+    // TODO: Enable interrupts and start normal operation
+
     match Framebuffer::new(1024, 768) {
         Ok(fb) => {
             // Define some colors (ARGB format, but Alpha is ignored)
