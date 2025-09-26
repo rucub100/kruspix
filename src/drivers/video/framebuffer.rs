@@ -1,13 +1,35 @@
 // src/framebuffer.rs
 
-use crate::bcm2835_mailbox::{mailbox_call, MessageBuffer};
+use crate::bcm2835_mailbox::{MessageBuffer, mailbox_call};
 use core::ptr::write_volatile;
 
 // A simple 8x16 font embedded in the code.
 // This is just a placeholder; you'd need the full font data.
 // https://github.com/ercanersoy/PSF-Fonts
 // GNU GPL v2
-static FONT: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib/fonts/font.bin")); // We'll need a font file
+static FONT: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/src/lib/fonts/font.bin"
+)); // We'll need a font file
+
+static mut FRAMEBUFFER: Option<Framebuffer> = None;
+
+pub fn init_framebuffer() {
+    unsafe {
+        FRAMEBUFFER = match Framebuffer::new(1024, 768) {
+            Ok(fb) => Some(fb),
+            Err(_) => None,
+        };
+    }
+}
+
+pub fn print(msg: &str) {
+    unsafe {
+        if let Some(ref fb) = FRAMEBUFFER {
+            fb.print(msg, 10, 10, 0xFFFFFFFF); // White text
+        }
+    }
+}
 
 pub struct Framebuffer {
     pub width: u32,
@@ -23,28 +45,45 @@ impl Framebuffer {
         let mut msg = MessageBuffer([
             35 * 4, // Total size of the message in bytes
             0,      // Request code
-
             // Tag: Set physical display width/height
-            0x00048003, 8, 8, width, height,
-
+            0x00048003,
+            8,
+            8,
+            width,
+            height,
             // Tag: Set virtual buffer width/height
-            0x00048004, 8, 8, width, height,
-
+            0x00048004,
+            8,
+            8,
+            width,
+            height,
             // Tag: Set virtual offset
-            0x00048009, 8, 8, 0, 0,
-
+            0x00048009,
+            8,
+            8,
+            0,
+            0,
             // Tag: Set depth
-            0x00048005, 4, 4, 32, // 32 bits per pixel
-
+            0x00048005,
+            4,
+            4,
+            32, // 32 bits per pixel
             // Tag: Set pixel order (1 = RGB)
-            0x00048006, 4, 4, 1,
-
+            0x00048006,
+            4,
+            4,
+            1,
             // Tag: Allocate buffer
-            0x00040001, 8, 8, 0, 0, // Alignment and response placeholder
-
+            0x00040001,
+            8,
+            8,
+            0,
+            0, // Alignment and response placeholder
             // Tag: Get pitch
-            0x00040008, 4, 4, 0, // Response placeholder
-
+            0x00040008,
+            4,
+            4,
+            0, // Response placeholder
             0, // End tag
         ]);
 

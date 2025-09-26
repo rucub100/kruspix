@@ -1,8 +1,8 @@
 #![no_std]
 #![no_main]
 
-use framebuffer::Framebuffer;
 use crate::bcm2835_wdt::bcm2835_wdt_disable;
+use crate::framebuffer::{init_framebuffer, print};
 
 mod panic_handler;
 
@@ -32,21 +32,8 @@ pub extern "C" fn start_kernel() -> ! {
     // TODO: setup root user space process a.k.a. init
     // TODO: Enable interrupts and start normal operation
 
-    match Framebuffer::new(1024, 768) {
-        Ok(fb) => {
-            // Define some colors (ARGB format, but Alpha is ignored)
-            let white = 0x00FFFFFF;
-            let green = 0x0000FF00;
-
-            // Print the message
-            fb.print("Hello World?", 100, 100, white);
-            fb.print("This is running on bare metal!", 100, 120, green);
-        }
-        Err(_) => {
-            // If framebuffer init fails, we can't print anything.
-            // Just halt.
-        }
-    }
+    init_framebuffer();
+    print("Hello world!");
 
     loop {
         unsafe {
