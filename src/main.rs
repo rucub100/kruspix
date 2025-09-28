@@ -38,7 +38,6 @@ pub extern "C" fn start_kernel() -> ! {
 
     init_framebuffer();
 
-    // TODO: test new impl on real hardware
     bcm2835_wdt_disable();
 
     print("Hello world!");
