@@ -1,3 +1,4 @@
+use crate::kernel::boot::devicetree::Fdt;
 use crate::kernel::boot::devicetree::fdt_header::FdtHeader;
 
 pub fn setup_arch() {
@@ -11,11 +12,9 @@ pub fn parse_fdt() {
         core::arch::asm!("mov {}, x0", out(reg) fdt_addr);
     }
 
-    let fdt_header = FdtHeader::from_addr(fdt_addr);
+    let fdt = Fdt::new(fdt_addr);
+    let fdt = fdt.unwrap();
 
-    if !fdt_header.is_valid() {
-        panic!("FDT header is not valid");
-    }
 
     // TODO: construct free memory ranges from the /memory node and /reserved-memory nodes
     // as well as the memory reservation block

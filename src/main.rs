@@ -6,22 +6,21 @@ use crate::framebuffer::{init_framebuffer, print};
 use crate::setup::setup_arch;
 
 mod panic_handler;
+mod kernel;
+mod mm;
 
 #[cfg(target_arch = "aarch64")]
 #[path = "arch/arm64/kernel/entry.rs"]
 mod entry;
-
 #[cfg(target_arch = "aarch64")]
 #[path = "arch/arm64/kernel/setup.rs"]
 mod setup;
-
 #[path = "drivers/mailbox/bcm2835_mailbox.rs"]
 mod bcm2835_mailbox;
 #[path = "drivers/watchdog/bcm2835_wdt.rs"]
 mod bcm2835_wdt;
 #[path = "drivers/video/framebuffer.rs"]
 mod framebuffer;
-mod kernel;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn start_kernel() -> ! {
