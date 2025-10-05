@@ -1,6 +1,5 @@
 #[repr(C, align(4))]
-pub struct FdtProp
-{
+pub struct FdtProp {
     len: u32,
     nameoff: u32,
 }

@@ -1,12 +1,15 @@
 use fdt_header::{FdtHeader, FdtHeaderPtrExt};
 use fdt_reserve_entry::FdtReserveEntry;
-use fdt_reserve_entry::FdtReserveEntryPtr;
-use fdt_structure_block::StructureBlockPtr;
+use fdt_reserve_entry::FdtReserveEntryIter;
+use fdt_structure_block::StructureBlockIter;
+use node::NodeIter;
 
 pub mod fdt_header;
 pub mod fdt_prop;
 pub mod fdt_reserve_entry;
 pub mod fdt_structure_block;
+mod node;
+mod prop;
 
 pub struct Fdt {
     address: usize,
@@ -22,7 +25,7 @@ impl Fdt {
         }
     }
 
-    pub fn memory_reservation_block(&self) -> FdtReserveEntryPtr {
+    pub fn memory_reservation_block_iter(&self) -> FdtReserveEntryIter {
         let header = FdtHeader::at_addr(self.address);
         let offset = header.mem_rsv_map_offset() as usize;
         let address = self.address + offset;
@@ -30,13 +33,23 @@ impl Fdt {
         fdt_reserve_entry_ptr.into()
     }
 
-    pub fn structure_block(&self) -> StructureBlockPtr {
+    pub fn structure_block_iter(&self) -> StructureBlockIter {
         let header = FdtHeader::at_addr(self.address);
         let structure_block_offset = header.structure_block_offset() as usize;
         let strings_block_offset = header.strings_block_offset() as usize;
         let structure_block_address = self.address + structure_block_offset;
         let strings_block_address = self.address + strings_block_offset;
         let token_be_ptr = structure_block_address as *const u32;
-        StructureBlockPtr::new(token_be_ptr, strings_block_address)
+        StructureBlockIter::new(token_be_ptr, strings_block_address)
+    }
+
+    pub fn nodes_iter(&self) -> NodeIter {
+        let header = FdtHeader::at_addr(self.address);
+        let structure_block_offset = header.structure_block_offset() as usize;
+        let strings_block_offset = header.strings_block_offset() as usize;
+        let structure_block_address = self.address + structure_block_offset;
+        let strings_block_address = self.address + strings_block_offset;
+        let token_be_ptr = structure_block_address as *const u32;
+        NodeIter::new(token_be_ptr, strings_block_address)
     }
 }

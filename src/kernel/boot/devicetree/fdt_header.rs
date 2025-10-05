@@ -41,6 +41,8 @@ impl FdtHeader {
 impl FdtHeaderPtrExt for *const FdtHeader {
     fn is_valid(&self) -> bool {
         unsafe {
+            /* we cannot deref magic because it's the very first field and might be at
+            address 0 which is invalid to deref (null pointer) */
             let magic_ptr = ptr::addr_of!((**self).magic);
             let magic_be = ptr::read(magic_ptr);
             u32::from_be(magic_be) == FDT_MAGIC
@@ -50,72 +52,63 @@ impl FdtHeaderPtrExt for *const FdtHeader {
     fn total_size(&self) -> u32 {
         unsafe {
             let total_size_ptr = ptr::addr_of!((**self).total_size);
-            let total_size_be = ptr::read(total_size_ptr);
-            u32::from_be(total_size_be)
+            u32::from_be(*total_size_ptr)
         }
     }
 
     fn version(&self) -> u32 {
         unsafe {
             let version_ptr = ptr::addr_of!((**self).version);
-            let version_be = ptr::read(version_ptr);
-            u32::from_be(version_be)
+            u32::from_be(*version_ptr)
         }
     }
 
     fn last_comp_version(&self) -> u32 {
         unsafe {
             let last_comp_version_ptr = ptr::addr_of!((**self).last_comp_version);
-            let last_comp_version_be = ptr::read(last_comp_version_ptr);
-            u32::from_be(last_comp_version_be)
+            u32::from_be(*last_comp_version_ptr)
         }
     }
 
     fn structure_block_offset(&self) -> u32 {
         unsafe {
             let off_dt_struct_ptr = ptr::addr_of!((**self).off_dt_struct);
-            let off_dt_struct_be = ptr::read(off_dt_struct_ptr);
-            u32::from_be(off_dt_struct_be)
+            u32::from_be(*off_dt_struct_ptr)
         }
     }
 
     fn structure_block_size(&self) -> u32 {
         unsafe {
             let size_dt_struct_ptr = ptr::addr_of!((**self).size_dt_struct);
-            let size_dt_struct_be = ptr::read(size_dt_struct_ptr);
-            u32::from_be(size_dt_struct_be)
+            u32::from_be(*size_dt_struct_ptr)
         }
     }
 
     fn strings_block_offset(&self) -> u32 {
         unsafe {
             let off_dt_strings_ptr = ptr::addr_of!((**self).off_dt_strings);
-            let off_dt_strings_be = ptr::read(off_dt_strings_ptr);
-            u32::from_be(off_dt_strings_be)
+            u32::from_be(*off_dt_strings_ptr)
         }
     }
 
     fn strings_block_size(&self) -> u32 {
         unsafe {
             let size_dt_strings_ptr = ptr::addr_of!((**self).size_dt_strings);
-            let size_dt_strings_be = ptr::read(size_dt_strings_ptr);
-            u32::from_be(size_dt_strings_be)
+            u32::from_be(*size_dt_strings_ptr)
         }
     }
 
     fn mem_rsv_map_offset(&self) -> u32 {
         unsafe {
             let off_mem_rsvmap_ptr = ptr::addr_of!((**self).off_mem_rsvmap);
-            let off_mem_rsvmap_be = ptr::read(off_mem_rsvmap_ptr);
-            u32::from_be(off_mem_rsvmap_be)
+            u32::from_be(*off_mem_rsvmap_ptr)
         }
     }
 
     fn boot_cpuid_phys(&self) -> u32 {
         unsafe {
             let boot_cpuid_phys_ptr = ptr::addr_of!((**self).boot_cpuid_phys);
-            let boot_cpuid_phys_be = ptr::read(boot_cpuid_phys_ptr);
-            u32::from_be(boot_cpuid_phys_be)
+            u32::from_be(*boot_cpuid_phys_ptr)
         }
     }
 }

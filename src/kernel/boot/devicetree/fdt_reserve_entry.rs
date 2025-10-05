@@ -7,13 +7,13 @@ pub struct FdtReserveEntry {
     size: u64,
 }
 
-pub struct FdtReserveEntryPtr {
+pub struct FdtReserveEntryIter {
     current: *const FdtReserveEntry,
 }
 
-impl From<*const FdtReserveEntry> for FdtReserveEntryPtr {
+impl From<*const FdtReserveEntry> for FdtReserveEntryIter {
     fn from(fdt_reserve_entry_ptr: *const FdtReserveEntry) -> Self {
-        FdtReserveEntryPtr { current: fdt_reserve_entry_ptr }
+        FdtReserveEntryIter { current: fdt_reserve_entry_ptr }
     }
 }
 
@@ -29,12 +29,12 @@ impl FdtReserveEntry {
     }
 }
 
-impl Iterator for FdtReserveEntryPtr {
-    type Item = FdtReserveEntry;
+impl Iterator for FdtReserveEntryIter {
+    type Item = &'static FdtReserveEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
-            let entry = ptr::read(self.current);
+            let entry = &*self.current;
 
             if entry.address() == 0 && entry.size() == 0 {
                 return None;
