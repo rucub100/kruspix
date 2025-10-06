@@ -3,7 +3,6 @@ use core::ptr;
 use core::slice;
 
 use super::fdt_prop::FdtProp;
-use super::node::Node;
 
 pub const FDT_BEGIN_NODE: u32 = const { 0x00000001 };
 pub const FDT_END_NODE: u32 = const { 0x00000002 };
@@ -136,8 +135,7 @@ impl Iterator for StructureBlockIter {
                             return Some(Err(()));
                         }
                     }
-
-                    let token_ptr = self.token_be_ptr;
+                    
                     self.token_be_ptr = self.token_be_ptr.add(1 + name_parts_count);
                     self.prev_token = token;
 
@@ -152,7 +150,6 @@ impl Iterator for StructureBlockIter {
                     }))
                 }
                 FDT_END_NODE => {
-                    let token_ptr = self.token_be_ptr;
                     self.token_be_ptr = self.token_be_ptr.add(1);
                     self.prev_token = token;
                     Some(Ok(StructureBlockEntry {
@@ -166,7 +163,6 @@ impl Iterator for StructureBlockIter {
                         return Some(Err(()));
                     }
 
-                    let token_ptr = self.token_be_ptr;
                     self.token_be_ptr = self.token_be_ptr.add(1);
 
                     let prop_ptr = self.token_be_ptr as *const FdtProp;
