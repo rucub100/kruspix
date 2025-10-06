@@ -1,6 +1,5 @@
 use core::cmp::PartialEq;
 use core::ffi::CStr;
-use core::ptr;
 
 use super::fdt_structure_block::{StructureBlockEntryKind, StructureBlockIter};
 
@@ -88,8 +87,6 @@ pub enum NodeKind {
 pub struct NodeIter {
     structure_block_iter: StructureBlockIter,
     depth: isize,
-    name: Option<&'static CStr>,
-    props_ptr: *const u32,
 }
 
 impl NodeIter {
@@ -100,8 +97,6 @@ impl NodeIter {
                 strings_block_address,
             ),
             depth: 0,
-            name: None,
-            props_ptr: ptr::null(),
         }
     }
 }
@@ -130,21 +125,11 @@ impl Iterator for NodeIter {
             match entry.kind() {
                 StructureBlockEntryKind::BeginNode { name, props_ptr } => {
                     self.depth += 1;
-                    self.name = Some(name);
-                    self.props_ptr = *props_ptr;
+                    return Some(Node::new(name, *props_ptr));
                 }
                 StructureBlockEntryKind::EndNode => {
                     self.depth -= 1;
-
-                    match self.name {
-                        None => continue,
-                        Some(name) => {
-                            let node = Node::new(name, self.props_ptr);
-                            self.name = None;
-                            self.props_ptr = ptr::null();
-                            return Some(node);
-                        }
-                    }
+                    continue;
                 }
                 _ => unreachable!(),
             }
