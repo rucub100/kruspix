@@ -17,6 +17,78 @@ impl Prop {
     pub fn value(&self) -> &'static [u8] {
         self.value
     }
+
+    pub fn value_as_u32(&self) -> Result<u32, ()> {
+        let bytes_count = size_of_val(&self.value) * 8;
+        if bytes_count != 32 {
+            return Err(());
+        }
+
+        let value_ptr = self.value.as_ptr() as *const u32;
+        unsafe { Ok(u32::from_be(*value_ptr)) }
+    }
+
+    pub fn value_as_u64(&self) -> Result<u64, ()> {
+        let bytes_count = size_of_val(&self.value) * 8;
+        if bytes_count != 64 {
+            return Err(());
+        }
+
+        let value_ptr = self.value.as_ptr() as *const u64;
+        unsafe { Ok(u64::from_be(*value_ptr)) }
+    }
+
+    pub fn value_as_string(&self) -> Result<&'static CStr, ()> {
+        if self.value.is_empty() {
+            return Err(());
+        }
+
+        CStr::from_bytes_with_nul(self.value).map_err(|_| ())
+    }
+
+    pub fn value_as_phandle(&self) -> Result<u32, ()> {
+        let bytes_count = size_of_val(&self.value) * 8;
+        if bytes_count != 32 {
+            return Err(());
+        }
+
+        let value_ptr = self.value.as_ptr() as *const u32;
+        unsafe { Ok(*value_ptr) }
+    }
+
+    pub fn value_as_string_list_iter(&self) -> StringListIter {
+        StringListIter {
+            string_list: self.value,
+            current_index: 0,
+        }
+    }
+}
+
+pub struct StringListIter {
+    string_list: &'static [u8],
+    current_index: usize,
+}
+
+impl Iterator for StringListIter {
+    type Item = Result<&'static CStr, ()>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_index >= self.string_list.len() {
+            return None;
+        }
+
+        let slice = &self.string_list[self.current_index..];
+        let cstr = CStr::from_bytes_until_nul(slice).map_err(|_| ());
+
+        if cstr.is_ok() {
+            let cstr_len = cstr.unwrap().to_bytes_with_nul().len();
+            self.current_index += cstr_len;
+        } else {
+            self.current_index = self.string_list.len();
+        }
+
+        Some(cstr)
+    }
 }
 
 pub struct PropIter {
