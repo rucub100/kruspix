@@ -80,6 +80,7 @@ impl Node {
                 }
             }
             b"chosen" => NodeKind::Chosen,
+            b"cpus" => NodeKind::Cpus,
             _ => NodeKind::Generic,
         }
     }

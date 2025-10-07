@@ -1,4 +1,4 @@
-use crate::kernel::boot::devicetree::{Fdt, node::NodeKind};
+use crate::kernel::boot::devicetree::Fdt;
 
 pub fn setup_arch() {
     parse_fdt();
@@ -14,29 +14,22 @@ pub fn parse_fdt() {
     let fdt = Fdt::new(fdt_addr);
     let fdt = fdt.unwrap();
 
-    let mut count_mem_resv = 0;
+    // TODO: extract required properties from this nodes and debug and test values
+    let root = fdt.root_node();
+    let aliases = fdt.aliases_node();
+    let reserved_memory = fdt.reserved_memory_node();
+    let chosen = fdt.chosen_node();
+    let cpus = fdt.cpus_node();
+
+    for mem_node in fdt.memory_node_iter() {
+        // TODO add memory range to an array (fixed size e.g. 32)
+    }
+
+    if let Some(reserved_memory_node) = reserved_memory {
+        // TODO subtract reserved memory ranges from array
+    }
+
     for entry in fdt.memory_reservation_block_iter() {
-        let addr = entry.address();
-        let size = entry.size();
-        count_mem_resv += 1;
+        // TODO subtract from memory ranges
     }
-
-    let mut count_nodes = 0;
-    for node in fdt.nodes_iter() {
-        match node.kind() {
-            NodeKind::Memory => {
-                for prop in fdt.props_iter(&node) {
-                    let name = prop.name();
-                    let value = prop.value();
-                }
-            }
-            _ => { /* ignore other nodes for now */ }
-        }
-        count_nodes += 1;
-    }
-
-    panic!("TODO");
-
-    // TODO: construct free memory ranges from the /memory node and /reserved-memory nodes
-    // as well as the memory reservation block
 }

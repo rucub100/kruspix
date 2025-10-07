@@ -46,7 +46,7 @@ impl Fdt {
         StructureBlockIter::new(token_be_ptr, strings_block_address)
     }
 
-    pub fn nodes_iter(&self) -> NodeIter {
+    pub fn node_iter(&self) -> NodeIter {
         let header = FdtHeader::at_addr(self.address);
         let structure_block_offset = header.structure_block_offset() as usize;
         let strings_block_offset = header.strings_block_offset() as usize;
@@ -56,7 +56,33 @@ impl Fdt {
         NodeIter::new(token_be_ptr, strings_block_address)
     }
 
-    pub fn props_iter(&self, node: &Node) -> PropIter {
+    pub fn root_node(&self) -> Result<Node, ()> {
+        let root = self.node_iter().find(|node| node.is_root());
+        root.ok_or(())
+    }
+
+    pub fn aliases_node(&self) -> Option<Node> {
+        self.node_iter().find(|node| node.is_aliases())
+    }
+
+    pub fn memory_node_iter(&self) -> impl Iterator<Item = Node> {
+        self.node_iter().filter(|node| node.is_memory())
+    }
+
+    pub fn reserved_memory_node(&self) -> Option<Node> {
+        self.node_iter().find(|node| node.is_reserved_memory())
+    }
+
+    pub fn chosen_node(&self) -> Option<Node> {
+        self.node_iter().find(|node| node.is_chosen())
+    }
+
+    pub fn cpus_node(&self) -> Result<Node, ()> {
+        let root = self.node_iter().find(|node| node.is_cpus());
+        root.ok_or(())
+    }
+
+    pub fn prop_iter(&self, node: &Node) -> PropIter {
         let header = FdtHeader::at_addr(self.address);
         let strings_block_offset = header.strings_block_offset() as usize;
         let strings_block_address = self.address + strings_block_offset;
