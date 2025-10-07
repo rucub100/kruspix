@@ -1,5 +1,4 @@
-use crate::kernel::boot::devicetree::Fdt;
-use crate::kernel::boot::devicetree::fdt_structure_block::StructureBlockEntryKind;
+use crate::kernel::boot::devicetree::{Fdt, node::NodeKind};
 
 pub fn setup_arch() {
     parse_fdt();
@@ -24,8 +23,15 @@ pub fn parse_fdt() {
 
     let mut count_nodes = 0;
     for node in fdt.nodes_iter() {
-        // TODO: iterate props if this is memory or reserved-memory node
-        let is_mem = node.is_memory();
+        match node.kind() {
+            NodeKind::Memory => {
+                for prop in fdt.props_iter(&node) {
+                    let name = prop.name();
+                    let value = prop.value();
+                }
+            }
+            _ => { /* ignore other nodes for now */ }
+        }
         count_nodes += 1;
     }
 

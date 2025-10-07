@@ -12,7 +12,7 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn new(name: &'static CStr, props_ptr: *const u32) -> Self {
+    fn new(name: &'static CStr, props_ptr: *const u32) -> Self {
         let kind = Self::_parse_kind(name);
 
         Node {
@@ -20,6 +20,14 @@ impl Node {
             kind,
             props_ptr,
         }
+    }
+
+    pub fn name(&self) -> &'static CStr {
+        self.name
+    }
+
+    pub fn kind(&self) -> NodeKind {
+        self.kind
     }
 
     pub fn is_root(&self) -> bool {
@@ -49,6 +57,10 @@ impl Node {
         self.kind == NodeKind::Generic
     }
 
+    pub fn props_ptr(&self) -> *const u32 {
+        self.props_ptr
+    }
+
     fn _parse_kind(name: &'static CStr) -> NodeKind {
         match name.to_bytes() {
             b"" => NodeKind::Root,
@@ -73,7 +85,7 @@ impl Node {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum NodeKind {
     Root,
     Aliases,
