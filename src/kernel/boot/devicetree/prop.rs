@@ -200,3 +200,14 @@ pub enum InterruptNexusProp {
     InterruptMapMask,
     InterruptCells,
 }
+
+pub enum ChassisType {
+    Desktop,
+    Laptop,
+    Convertible,
+    Server,
+    Tablet,
+    Handset,
+    Watch,
+    Embedded,
+}
