@@ -19,7 +19,7 @@ impl Prop {
     }
 
     pub fn value_as_u32(&self) -> Result<u32, ()> {
-        let bytes_count = size_of_val(&self.value) * 8;
+        let bytes_count = &self.value.len() * 8;
         if bytes_count != 32 {
             return Err(());
         }
@@ -29,7 +29,7 @@ impl Prop {
     }
 
     pub fn value_as_u64(&self) -> Result<u64, ()> {
-        let bytes_count = size_of_val(&self.value) * 8;
+        let bytes_count = &self.value.len() * 8;
         if bytes_count != 64 {
             return Err(());
         }
@@ -47,7 +47,7 @@ impl Prop {
     }
 
     pub fn value_as_phandle(&self) -> Result<u32, ()> {
-        let bytes_count = size_of_val(&self.value) * 8;
+        let bytes_count = &self.value.len() * 8;
         if bytes_count != 32 {
             return Err(());
         }
