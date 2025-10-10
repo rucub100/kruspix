@@ -184,6 +184,28 @@ pub enum StandardProp {
     DmaNoncoherent,
 }
 
+impl TryFrom<&[u8]> for StandardProp {
+    type Error = ();
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        match value {
+            b"compatible" => Ok(StandardProp::Compatible),
+            b"model" => Ok(StandardProp::Model),
+            b"phandle" => Ok(StandardProp::PHandle),
+            b"status" => Ok(StandardProp::Status),
+            b"#address-cells" => Ok(StandardProp::AddressCells),
+            b"#size-cells" => Ok(StandardProp::SizeCells),
+            b"reg" => Ok(StandardProp::Reg),
+            b"virtual-reg" => Ok(StandardProp::VirtualReg),
+            b"ranges" => Ok(StandardProp::Ranges),
+            b"dma-ranges" => Ok(StandardProp::DmaRanges),
+            b"dma-coherent" => Ok(StandardProp::DmaCoherent),
+            b"dma-noncoherent" => Ok(StandardProp::DmaNoncoherent),
+            _ => Err(()),
+        }
+    }
+}
+
 pub enum InterruptGenDevProp {
     Interrupts,
     InterruptParent,
