@@ -25,3 +25,17 @@ pub fn parse_fdt() -> Result<([(usize, usize); 32]), ()> {
 
     Ok((memory))
 }
+
+fn kernel_addr_size() -> (usize, usize) {
+    let kernel_start: usize;
+    let kernel_end: usize;
+
+    unsafe {
+        core::arch::asm!("
+            ldr {}, =_start
+            ldr {}, =_end
+        ", out(reg) kernel_start, out(reg) kernel_end);
+    }
+
+    (kernel_start, kernel_end - kernel_start)
+}

@@ -26,4 +26,5 @@ SECTIONS {
     /* Stack top symbol (used in Rust asm) */
     . = ALIGN(16);
     __stack_top = . + 0x10000; /* 64 KiB stack */
+    _end = .;
 }

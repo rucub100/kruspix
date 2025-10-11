@@ -33,4 +33,5 @@ SECTIONS {
         *(.eh_frame)
         *(.debug_*)
     }
+    _end = .;
 }
