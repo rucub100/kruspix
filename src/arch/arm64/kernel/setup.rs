@@ -1,10 +1,15 @@
 use crate::kernel::boot::devicetree::Fdt;
+use crate::mm::init_phys_mem;
 
 pub fn setup_arch() {
-    let fdt = parse_fdt();
+    let (mem, reserved_mem) = parse_fdt().unwrap();
+    let (kernel_addr, kernel_size) = kernel_addr_size();
+    let mem = calc_available_mem(mem, &reserved_mem, (kernel_addr, kernel_size));
+
+    init_phys_mem(&mem);
 }
 
-pub fn parse_fdt() -> Result<([(usize, usize); 32]), ()> {
+fn parse_fdt() -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {
     let fdt_addr: usize;
 
     unsafe {
@@ -21,9 +26,7 @@ pub fn parse_fdt() -> Result<([(usize, usize); 32]), ()> {
     let memory = fdt.parse_memory().unwrap();
     let reserved_memory = fdt.parse_reserved_memory().unwrap();
 
-    // TODO: consider also reserved memory of the kernel image
-
-    Ok((memory))
+    Ok((memory, reserved_memory))
 }
 
 fn kernel_addr_size() -> (usize, usize) {
@@ -38,4 +41,13 @@ fn kernel_addr_size() -> (usize, usize) {
     }
 
     (kernel_start, kernel_end - kernel_start)
+}
+
+fn calc_available_mem( mem: [(usize, usize); 32], reserved_mem: &[(usize, usize); 32], kernel_region: (usize, usize)) -> [(usize, usize); 32] {
+    let next_mem_index = mem.iter().position(|(addr, size)| *size == 0).unwrap_or(32);
+
+    // TODO subtract kernel region from mem
+    // TODO subtract reserved_mem from mem
+
+    mem
 }
