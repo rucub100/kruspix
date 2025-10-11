@@ -62,6 +62,73 @@ impl Prop {
             current_index: 0,
         }
     }
+
+    pub fn value_as_prop_encoded_array_cells_pair_iter(&self, size_1: u32, size_2: u32) -> impl Iterator<Item = (usize, usize)> {
+        assert!(size_1 > 0);
+        assert!(size_2 > 0);
+
+        let chunk_size = (size_1 + size_2) as usize * 4;
+        assert_eq!(self.value.len() % chunk_size, 0);
+
+        let first_range = ..size_1 as usize * 4;
+        let second_range = size_1 as usize * 4..;
+
+        self.value.chunks(chunk_size).map(move |chunk| {
+            let mut first: usize = 0;
+            let first_range = first_range.clone();
+            for first_chunk in chunk[first_range].chunks(4) {
+                first <<= 32;
+                first += u32::from_be_bytes(first_chunk.try_into().unwrap()) as usize;
+            }
+
+            let mut second: usize = 0;
+            let second_range = second_range.clone();
+            for second_chunk in chunk[second_range].chunks(4) {
+                second <<= 32;
+                second += u32::from_be_bytes(second_chunk.try_into().unwrap()) as usize;
+            }
+
+            (first, second)
+        })
+    }
+
+    pub fn value_as_prop_encoded_array_cells_triplet_iter(&self, size_1: u32, size_2: u32, size_3: u32) -> impl Iterator<Item = (usize, usize, usize)> {
+        assert!(size_1 > 0);
+        assert!(size_2 > 0);
+        assert!(size_3 > 0);
+
+        let chunk_size = (size_1 + size_2 + size_3) as usize * 4;
+        assert_eq!(self.value.len() % chunk_size, 0);
+
+        let first_range = ..size_1 as usize * 4;
+        let second_range = size_1 as usize * 4..(size_1 + size_2) as usize * 4;
+        let third_range = (size_1 + size_2) as usize * 4..;
+
+        self.value.chunks(chunk_size).map(move |chunk| {
+            let mut first: usize = 0;
+            let first_range = first_range.clone();
+            for first_chunk in chunk[first_range].chunks(4) {
+                first <<= 32;
+                first += u32::from_be_bytes(first_chunk.try_into().unwrap()) as usize;
+            }
+
+            let mut second: usize = 0;
+            let second_range = second_range.clone();
+            for second_chunk in chunk[second_range].chunks(4) {
+                second <<= 32;
+                second += u32::from_be_bytes(second_chunk.try_into().unwrap()) as usize;
+            }
+
+            let mut third: usize = 0;
+            let third_range = third_range.clone();
+            for third_chunk in chunk[third_range].chunks(4) {
+                third <<= 32;
+                third += u32::from_be_bytes(third_chunk.try_into().unwrap()) as usize;
+            }
+
+            (first, second, third)
+        })
+    }
 }
 
 pub struct StringListIter {

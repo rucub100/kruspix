@@ -89,20 +89,15 @@ impl Fdt {
         PropIter::new(node.props_ptr(), strings_block_address)
     }
 
-    pub fn parse_memory_nodes(&self) -> Result<[(usize, usize); 32], ()> {
-        let root = self.root_node()?;
-        let mut root_address_cells: Option<u32> = None;
-        let mut root_size_cells: Option<u32> = None;
+    pub fn address_and_size_cells(&self, node: &Node) -> Result<(u32, u32), ()> {
+        let mut address_cells: Option<u32> = None;
+        let mut size_cells: Option<u32> = None;
 
-        let aliases = self.aliases_node();
-        let reserved_memory = self.reserved_memory_node();
-        let chosen = self.chosen_node();
-        let cpus = self.cpus_node()?;
-
-        for prop in self.prop_iter(&root) {
+        for prop in self.prop_iter(&node) {
             let name = prop.name();
             let standard_prop = name.to_bytes().try_into();
 
+            // consider only standard properties
             if standard_prop.is_err() {
                 continue;
             }
@@ -111,17 +106,17 @@ impl Fdt {
             match standard_prop {
                 StandardProp::AddressCells => {
                     let value = prop.value_as_u32()?;
-                    root_address_cells = Some(value);
+                    address_cells = Some(value);
 
-                    if root_size_cells.is_some() {
+                    if size_cells.is_some() {
                         break;
                     }
                 }
                 StandardProp::SizeCells => {
                     let value = prop.value_as_u32()?;
-                    root_size_cells = Some(value);
-                    
-                    if root_address_cells.is_some() {
+                    size_cells = Some(value);
+
+                    if address_cells.is_some() {
                         break;
                     }
                 }
@@ -129,8 +124,18 @@ impl Fdt {
             }
         }
 
-        let root_address_cells = root_address_cells.ok_or(())?;
-        let root_size_cells = root_size_cells.ok_or(())?;
+        let address_cells = address_cells.ok_or(())?;
+        let size_cells = size_cells.ok_or(())?;
+        Ok((address_cells, size_cells))
+    }
+
+    pub fn parse_memory(&self) -> Result<[(usize, usize); 32], ()> {
+        let root = self.root_node()?;
+        let (root_address_cells, root_size_cells) = self.address_and_size_cells(&root)?;
+
+        if root_address_cells == 0 || root_size_cells == 0 {
+            return Err(());
+        }
 
         let mut result: [(usize, usize); 32] = [(0, 0); 32];
         let mut memory_reg_index: usize = 0;
@@ -148,41 +153,82 @@ impl Fdt {
             let standard_prop = standard_prop?;
             match standard_prop {
                 StandardProp::Reg => {
-                    let value = prop.value();
-                    let chunk_size = (root_address_cells + root_size_cells) as usize * 4;
-                    assert_eq!(value.len() % chunk_size, 0);
-
-                    for chunk in value.chunks(chunk_size) {
-                        let mut address: usize = 0;
-                        for addr_chunk in chunk[..root_address_cells as usize * 4].chunks(4) {
-                            address <<= 32;
-                            address += u32::from_be_bytes(addr_chunk.try_into().unwrap()) as usize;
-                        }
-
-                        let mut size: usize = 0;
-                        for size_chunk in chunk[root_address_cells as usize * 4..].chunks(4) {
-                            size <<= 32;
-                            size += u32::from_be_bytes(size_chunk.try_into().unwrap()) as usize;
-                        }
-
+                    for (address, size) in prop.value_as_prop_encoded_array_cells_pair_iter(
+                        root_address_cells,
+                        root_size_cells,
+                    ) {
                         result[memory_reg_index] = (address, size);
                         memory_reg_index += 1;
 
                         if memory_reg_index >= result.len() {
+                            // TODO flag overflow to signal missing memory regions
                             break;
                         }
                     }
+
+                    // we only care about the 'reg' property
+                    break;
                 }
                 _ => { /* ignore other properties */ }
             }
         }
 
-        if let Some(reserved_memory_node) = reserved_memory {
-            // TODO subtract reserved memory ranges from array
+        Ok(result)
+    }
+
+    pub fn parse_reserved_memory(&self) -> Result<[(usize, usize); 32], ()> {
+        let mut result: [(usize, usize); 32] = [(0, 0); 32];
+        let mut index: usize = 0;
+
+        let header = FdtHeader::at_addr(self.address);
+        result[index] = (self.address, header.total_size() as usize);
+        index += 1;
+
+        let reserved_memory_node = self.reserved_memory_node();
+        if let Some(reserved_memory_node) = reserved_memory_node {
+            let root = self.root_node()?;
+            let (root_address_cells, root_size_cells) = self.address_and_size_cells(&root)?;
+            let (address_cells, size_cells) = self.address_and_size_cells(&reserved_memory_node)?;
+
+            // address translation not supported
+            if address_cells != root_address_cells || size_cells != root_size_cells {
+                return Err(());
+            }
+            for prop in self.prop_iter(&reserved_memory_node) {
+                if prop.value().is_empty() {
+                    continue;
+                }
+
+                let name = prop.name();
+                let standard_prop = name.to_bytes().try_into();
+
+                if standard_prop.is_err() {
+                    continue;
+                }
+
+                let standard_prop = standard_prop?;
+                match standard_prop {
+                    StandardProp::Ranges => {
+                        // address translation not supported
+                        unimplemented!()
+                    }
+                    _ => { /* ignore other properties */ }
+                }
+            }
+
+            // TODO /reserved-memory/ child nodes
         }
 
         for entry in self.memory_reservation_block_iter() {
-            // TODO subtract from memory ranges
+            if index >= result.len() {
+                return Err(());
+            }
+
+            let address = usize::try_from(entry.address()).map_err(|_| ())?;
+            let size = usize::try_from(entry.size()).map_err(|_| ())?;
+
+            result[index] = (address, size);
+            index += 1;
         }
 
         Ok(result)
