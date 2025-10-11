@@ -8,17 +8,18 @@ pub struct Node {
     kind: NodeKind,
     // parent_ptr: *const u32,
     props_ptr: *const u32,
-    // children_ptr: *const u32,
+    children_ptr: *const u32,
 }
 
 impl Node {
-    fn new(name: &'static CStr, props_ptr: *const u32) -> Self {
+    fn new(name: &'static CStr, props_ptr: *const u32, children_ptr: *const u32) -> Self {
         let kind = Self::_parse_kind(name);
 
         Node {
             name,
             kind,
             props_ptr,
+            children_ptr,
         }
     }
 
@@ -61,6 +62,10 @@ impl Node {
         self.props_ptr
     }
 
+    pub fn children_ptr(&self) -> *const u32 {
+        self.children_ptr
+    }
+
     fn _parse_kind(name: &'static CStr) -> NodeKind {
         match name.to_bytes() {
             b"" => NodeKind::Root,
@@ -99,17 +104,21 @@ pub enum NodeKind {
 
 pub struct NodeIter {
     structure_block_iter: StructureBlockIter,
-    depth: isize,
+    current_depth: isize,
+    max_depth: isize,
 }
 
 impl NodeIter {
-    pub fn new(token_be_ptr: *const u32, strings_block_address: usize) -> Self {
+    pub fn new(token_be_ptr: *const u32, strings_block_address: usize, max_depth: isize) -> Self {
+        assert!(max_depth > 0);
+
         NodeIter {
             structure_block_iter: StructureBlockIter::new_without_props(
                 token_be_ptr,
                 strings_block_address,
             ),
-            depth: 0,
+            current_depth: 0,
+            max_depth,
         }
     }
 }
@@ -119,7 +128,7 @@ impl Iterator for NodeIter {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if self.depth < 0 {
+            if self.current_depth < 0 {
                 return None;
             }
 
@@ -136,12 +145,16 @@ impl Iterator for NodeIter {
             let entry = result.unwrap();
 
             match entry.kind() {
-                StructureBlockEntryKind::BeginNode { name, props_ptr } => {
-                    self.depth += 1;
-                    return Some(Node::new(name, *props_ptr));
+                StructureBlockEntryKind::BeginNode { name, props_ptr, children_ptr } => {
+                    self.current_depth += 1;
+                    if self.current_depth > self.max_depth {
+                        continue;
+                    }
+
+                    return Some(Node::new(name, *props_ptr, *children_ptr));
                 }
                 StructureBlockEntryKind::EndNode => {
-                    self.depth -= 1;
+                    self.current_depth -= 1;
                     continue;
                 }
                 _ => unreachable!(),

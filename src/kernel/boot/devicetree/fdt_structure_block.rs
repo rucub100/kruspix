@@ -18,6 +18,7 @@ pub enum StructureBlockEntryKind {
     BeginNode {
         name: &'static CStr,
         props_ptr: *const u32,
+        children_ptr: *const u32,
     },
     EndNode,
     Prop {
@@ -95,6 +96,14 @@ impl StructureBlockIter {
             }
         }
     }
+
+    fn peek_next_non_nop_token_without_props(&mut self) -> (u32, *const u32) {
+        let saved_token_be_ptr = self.token_be_ptr;
+        let token = self.next_non_nop_token_without_props();
+        let ptr = self.token_be_ptr;
+        self.token_be_ptr = saved_token_be_ptr;
+        (token, ptr)
+    }
 }
 
 impl Iterator for StructureBlockIter {
@@ -135,18 +144,31 @@ impl Iterator for StructureBlockIter {
                             return Some(Err(()));
                         }
                     }
-                    
+
                     self.token_be_ptr = self.token_be_ptr.add(1 + name_parts_count);
                     self.prev_token = token;
 
                     let mut props_ptr = ptr::null();
+                    let mut children_ptr = ptr::null();
                     let next_token = self.next_non_nop_token();
                     if next_token == FDT_PROP {
                         props_ptr = self.token_be_ptr;
+                    } else if next_token == FDT_BEGIN_NODE {
+                        children_ptr = self.token_be_ptr;
                     }
+                    let (next_without_props, ptr) = self.peek_next_non_nop_token_without_props();
+                    children_ptr = if next_without_props == FDT_BEGIN_NODE {
+                        ptr
+                    } else {
+                        ptr::null()
+                    };
 
                     Some(Ok(StructureBlockEntry {
-                        kind: StructureBlockEntryKind::BeginNode { name, props_ptr },
+                        kind: StructureBlockEntryKind::BeginNode {
+                            name,
+                            props_ptr,
+                            children_ptr,
+                        },
                     }))
                 }
                 FDT_END_NODE => {

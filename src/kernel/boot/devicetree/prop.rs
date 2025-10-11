@@ -63,6 +63,24 @@ impl Prop {
         }
     }
 
+    pub fn value_as_prop_encoded_array_cells_iter(&self, size: u32) -> impl Iterator<Item = usize> {
+        assert!(size > 0);
+
+        let chunk_size = size as usize * 4;
+        assert_eq!(self.value.len() % chunk_size, 0);
+        
+
+        self.value.chunks(chunk_size).map(move |item| {
+            let mut result: usize = 0;
+            for chunk in item.chunks(4) {
+                result <<= 32;
+                result += u32::from_be_bytes(chunk.try_into().unwrap()) as usize;
+            }
+            
+            result
+        })
+    }
+    
     pub fn value_as_prop_encoded_array_cells_pair_iter(&self, size_1: u32, size_2: u32) -> impl Iterator<Item = (usize, usize)> {
         assert!(size_1 > 0);
         assert!(size_2 > 0);
@@ -269,6 +287,25 @@ impl TryFrom<&[u8]> for StandardProp {
             b"dma-coherent" => Ok(StandardProp::DmaCoherent),
             b"dma-noncoherent" => Ok(StandardProp::DmaNoncoherent),
             _ => Err(()),
+        }
+    }
+}
+
+impl From<StandardProp> for &[u8] {
+    fn from(value: StandardProp) -> Self {
+        match value {
+            StandardProp::Compatible => b"compatible",
+            StandardProp::Model => b"model",
+            StandardProp::PHandle => b"phandle",
+            StandardProp::Status => b"status",
+            StandardProp::AddressCells => b"#address-cells",
+            StandardProp::SizeCells => b"#size-cells",
+            StandardProp::Reg => b"reg",
+            StandardProp::VirtualReg => b"virtual-reg",
+            StandardProp::Ranges => b"ranges",
+            StandardProp::DmaRanges => b"dma-ranges",
+            StandardProp::DmaCoherent => b"dma-coherent",
+            StandardProp::DmaNoncoherent => b"dma-noncoherent",
         }
     }
 }

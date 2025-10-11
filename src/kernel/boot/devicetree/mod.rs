@@ -53,7 +53,7 @@ impl Fdt {
         let structure_block_address = self.address + structure_block_offset;
         let strings_block_address = self.address + strings_block_offset;
         let token_be_ptr = structure_block_address as *const u32;
-        NodeIter::new(token_be_ptr, strings_block_address)
+        NodeIter::new(token_be_ptr, strings_block_address, isize::MAX)
     }
 
     pub fn root_node(&self) -> Result<Node, ()> {
@@ -87,6 +87,13 @@ impl Fdt {
         let strings_block_offset = header.strings_block_offset() as usize;
         let strings_block_address = self.address + strings_block_offset;
         PropIter::new(node.props_ptr(), strings_block_address)
+    }
+
+    pub fn child_iter(&self, node: &Node) -> NodeIter {
+        let header = FdtHeader::at_addr(self.address);
+        let strings_block_offset = header.strings_block_offset() as usize;
+        let strings_block_address = self.address + strings_block_offset;
+        NodeIter::new(node.children_ptr(), strings_block_address, 1)
     }
 
     pub fn address_and_size_cells(&self, node: &Node) -> Result<(u32, u32), ()> {
@@ -180,6 +187,7 @@ impl Fdt {
         let mut result: [(usize, usize); 32] = [(0, 0); 32];
         let mut index: usize = 0;
 
+        // add FDT blob itself to reserved memory
         let header = FdtHeader::at_addr(self.address);
         result[index] = (self.address, header.total_size() as usize);
         index += 1;
@@ -216,7 +224,39 @@ impl Fdt {
                 }
             }
 
-            // TODO /reserved-memory/ child nodes
+            let mut size_dynamic = 0;
+            for child_prop in self
+                .child_iter(&reserved_memory_node)
+                .flat_map(|node| self.prop_iter(&node))
+            {
+                if child_prop.value().is_empty() {
+                    continue;
+                }
+
+                let name = child_prop.name().to_bytes();
+                match name {
+                    val if val == Into::<&[u8]>::into(StandardProp::Reg) => {
+                        for (address, size) in child_prop
+                            .value_as_prop_encoded_array_cells_pair_iter(address_cells, size_cells)
+                        {
+                            if index >= result.len() {
+                                return Err(());
+                            }
+
+                            result[index] = (address, size);
+                            index += 1;
+                        }
+                    }
+                    b"size" => {
+                        for size in child_prop.value_as_prop_encoded_array_cells_iter(size_cells) {
+                            size_dynamic += size;
+                        }
+                    }
+                    _ => {
+                        continue;
+                    }
+                }
+            }
         }
 
         for entry in self.memory_reservation_block_iter() {
