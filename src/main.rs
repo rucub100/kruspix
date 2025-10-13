@@ -26,10 +26,14 @@ mod framebuffer;
 pub extern "C" fn start_kernel() -> ! {
     // TODO: Arch-specific setup (device tree, etc)
     setup_arch();
-    // TODO: SMP system setup (CPU setup)
     // TODO: memory management setup
+    // + setup initial page tables
+    // + enable MMU and virtual memory
+    // + page allocator
+    // + kernel heap allocator
     // TODO: interrupts/exceptions setup
     // TODO: Scheduler setup
+    // TODO: SMP system setup (CPU setup)
     // TODO: Initialize other kernel modules
     // TODO: Initialize device drivers
     // TODO: setup root user space process a.k.a. init
