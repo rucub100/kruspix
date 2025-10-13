@@ -25,7 +25,8 @@ SECTIONS {
 
     /* Stack top symbol (used in Rust asm) */
     . = ALIGN(16);
-    __stack_top = . + 0x10000; /* 64 KiB stack */
+    . = . + 0x10000; /* 64 KiB stack */
+    __stack_top = .;
 
     /* Discard debug sections */
     /DISCARD/ : {
@@ -33,5 +34,6 @@ SECTIONS {
         *(.eh_frame)
         *(.debug_*)
     }
+
     _end = .;
 }
