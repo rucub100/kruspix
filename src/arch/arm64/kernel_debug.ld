@@ -1,31 +1,30 @@
 ENTRY(_start)
 
-SECTIONS {
-    . = 0x80000;
+__vma_base = 0xFFFF800000080000;
+__lma_base = 0x80000;
+__lma_offset = __lma_base - __vma_base;
 
-    .text : {
+SECTIONS {
+    . = __vma_base;
+
+    .text : AT(. + __lma_offset) {
         KEEP(*(.text._start))
         *(.text .text.*)
     }
 
-    .rodata : {
+    .rodata : AT(. + __lma_offset) {
         *(.rodata .rodata.*)
     }
 
-    .data : {
+    .data : AT(. + __lma_offset) {
         *(.data .data.*)
     }
 
-    .bss : {
+    .bss : AT(. + __lma_offset) {
         __bss_start = .;
         *(.bss .bss.*)
         *(COMMON)
         __bss_end = .;
     }
-
-    /* Stack top symbol (used in Rust asm) */
-    . = ALIGN(16);
-    . = . + 0x10000; /* 64 KiB stack */
-    __stack_top = .;
     _end = .;
 }
