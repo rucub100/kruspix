@@ -167,6 +167,7 @@ TODO: How to start the kernel in QEMU?
 ### OS Development
 
 - [Writing an OS in Rust (x86_64)](https://os.phil-opp.com/)
+- [Simple RPi3 OS in C](https://github.com/s-matyukevich/raspberry-pi-os)
 - [Operating System development tutorials in Rust on the Raspberry Pi](https://github.com/rust-embedded/rust-raspberrypi-OS-tutorials)
 - [OSDev Wiki](https://wiki.osdev.org/Main_Page)
 - [QEMU Documentation](https://wiki.qemu.org/Documentation)
