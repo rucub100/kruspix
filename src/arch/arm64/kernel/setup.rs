@@ -1,14 +1,14 @@
 use core::iter;
 
 use crate::kernel::boot::devicetree::Fdt;
-use crate::mm::init_phys_mem;
+// use crate::mm::init_phys_mem;
 
 pub fn setup_arch() {
     let (mem, reserved_mem) = parse_fdt().unwrap();
     let (kernel_addr, kernel_size) = kernel_addr_size();
     let mem = calc_available_mem(mem, &reserved_mem, (kernel_addr, kernel_size));
 
-    init_phys_mem(&mem);
+    // init_phys_mem(&mem);
 }
 
 fn parse_fdt() -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {

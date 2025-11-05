@@ -114,7 +114,8 @@ extern "C" fn _enable_early_mmu() {
         "orr x3, x3, #0b11",
         "str x3, [x1]",
         "msr tcr_el1, x2",
-        "mov x0, #0xff",
+        // Device-nGnRnE memory for all memory
+        "mov x0, #0x00",
         "msr mair_el1, x0",
         "isb",
         // read system control register

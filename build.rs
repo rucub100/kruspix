@@ -16,6 +16,7 @@ impl SupportedArch {
     pub fn from_target(target: &str) -> Option<Self> {
         match target {
             "aarch64-unknown-none" => Some(SupportedArch::Aarch64),
+            "aarch64-unknown-none-softfloat" => Some(SupportedArch::Aarch64),
             _ => None,
         }
     }
