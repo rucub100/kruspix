@@ -4,42 +4,84 @@ use core::arch::naked_asm;
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     naked_asm!(
-        // check exception level
-        "adr x6, .",
-        "mrs x5, CurrentEL",
-        "lsr x5, x5, #2",
-        "cmp x5, #0",
-        "b.eq 0f",
-        "cmp x5, #1",
-        "b.eq start_el1",
-        "cmp x5, #2",
-        "b.eq el2_to_el1",
-        "cmp x5, #3",
-        "b.eq el3_to_el2",
-        "b 0f",
-        // switch from EL3 to EL2
-        "el3_to_el2:",
-        "mrs x5, cpacr_el1",
-        "orr x5, x5, #(0b11 << 20)",
-        "msr  cpacr_el1, x5",
-        "mov x5, (1 << 10) | (1 << 8) | (1 << 0)",
-        "msr scr_el3, x5",
-        "mov x5, (0b1111 << 6) | 9",
-        "msr spsr_el3, x5",
-        "adr x5, el2_to_el1",
-        "msr elr_el3, x5",
-        "eret",
-        // switch from EL2 to EL1
-        "el2_to_el1:",
-        "mov x5, (1 << 31)",
-        "msr hcr_el2, x5",
-        "mov x5, (0b1111 << 6) | 5",
-        "msr spsr_el2, x5",
-        "msr elr_el2, x6",
-        "eret",
-        "start_el1:",
-        // park secondary cores
         "bl _park_secondary_cores",
+        "b _start_primary",
+    );
+}
+
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+extern "C" fn _park_secondary_cores() {
+    naked_asm!(
+        // Multiprocessor Affinity Register
+        "mrs x4, mpidr_el1",
+        // Affinity level 0
+        "and x4, x4, #0xff",
+        // continue only with the primary core (core 0) for now
+        "cbz x4, 1f",
+        "0:",
+        "wfe",
+        "b 0b",
+        "1:",
+        "ret",
+    );
+}
+
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+pub extern "C" fn _start_primary() -> ! {
+    naked_asm!(
+        // check current exception level
+        "mrs x4, CurrentEL",
+        "lsr x4, x4, #2",
+        "cmp x4, #3",
+        "b.eq _start_el3",
+        "cmp x4, #2",
+        "b.eq _start_el2",
+        "cmp x4, #1",
+        "b.eq _start_el1",
+        // unsupported exception level
+        "0:",
+        "wfe",
+        "b 0b",
+    );
+}
+
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+extern "C" fn _start_el3() {
+    naked_asm!(
+        "mrs x4, cpacr_el1",
+        "orr x4, x4, #(0b11 << 20)",
+        "msr  cpacr_el1, x4",
+        "mov x4, (1 << 10) | (1 << 8) | (1 << 0)",
+        "msr scr_el3, x4",
+        "mov x4, (0b1111 << 6) | 9",
+        "msr spsr_el3, x4",
+        "adr x4, _start_primary",
+        "msr elr_el3, x4",
+        "eret",
+    );
+}
+
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+extern "C" fn _start_el2() {
+    naked_asm!(
+        "mov x4, (1 << 31)",
+        "msr hcr_el2, x4",
+        "mov x4, (0b1111 << 6) | 5",
+        "msr spsr_el2, x4",
+        "adr x5, _start_primary",
+        "msr elr_el2, x5",
+        "eret",
+    );
+}
+
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+extern "C" fn _start_el1() {
+    naked_asm!(
         // preserve DTB pointer from x0 to x20
         "mov x20, x0",
         // enable early MMU
@@ -69,26 +111,11 @@ pub extern "C" fn _start() -> ! {
 
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-extern "C" fn _park_secondary_cores() {
-    naked_asm!(
-        "mrs x3, mpidr_el1",
-        "and x3, x3, #0xff",
-        "cbz x3, 1f",
-        "0:",
-        "wfe",
-        "b 0b",
-        "1:",
-        "ret",
-    );
-}
-
-#[unsafe(naked)]
-#[unsafe(no_mangle)]
 extern "C" fn _enable_early_mmu() {
     naked_asm!(
-        "adr x6, mmu_enabled",
+        // setup virtual return address
         "mov x7, #0xffff800000000000",
-        "add x7, x7, x6",
+        "add x30, x30, x7",
         "mrs x2, tcr_el1",
         // set T0SZ and T1SZ to 16 (48-bit VA)
         "movz x3, #16",
@@ -125,7 +152,7 @@ extern "C" fn _enable_early_mmu() {
         // write back to system control register
         "msr sctlr_el1, x0",
         "isb",
-        "br x7",
+        "ret",
         // setup early page tables
         ".balign 4096",
         "LEVEL_0_TABLE_DESCRIPTOR_0:",
@@ -151,13 +178,13 @@ extern "C" fn _enable_early_mmu() {
 #[unsafe(no_mangle)]
 extern "C" fn _zero_bss() {
     naked_asm!(
-        "ldr x0, =__bss_start",
-        "ldr x1, =__bss_end",
-        "mov x2, xzr",
+        "ldr x4, =__bss_start",
+        "ldr x5, =__bss_end",
+        "mov x6, xzr",
         "0:",
-        "cmp x0, x1",
+        "cmp x4, x5",
         "b.ge 1f",
-        "str x2, [x0], #8",
+        "str x6, [x4], #8",
         "b 0b",
         "1:",
         "ret",
