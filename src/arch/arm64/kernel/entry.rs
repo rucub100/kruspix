@@ -41,7 +41,7 @@ extern "C" fn _park_secondary_cores() {
 }
 
 /// Entry point for the primary core.
-/// 
+///
 /// This function checks the current exception level and branches to the appropriate
 /// initialization function for that level.
 ///
@@ -69,7 +69,7 @@ pub extern "C" fn _start_primary() -> ! {
 }
 
 /// Initialization and configuration for EL3 (Secure Monitor).
-/// 
+///
 /// ### Important
 /// Do not use or modify registers `x0` to `x3` in this function as they may contain
 /// important boot information (e.g. DTB pointer in `x0`).
@@ -77,18 +77,39 @@ pub extern "C" fn _start_primary() -> ! {
 #[unsafe(no_mangle)]
 extern "C" fn _start_el3() {
     naked_asm!(
-        // TODO: System Control
-        // TODO: Memory Attribute Indirection
-        // Secure Configuration - TODO
+        // System Control
+        "mrs x4, sctlr_el3",
+        // disable MMU
+        "bic x4, x4, #(1 << 0)",
+        // enable alignment check
+        "orr x4, x4, #(1 << 1)",
+        // disable data cache
+        "bic x4, x4, #(1 << 2)",
+        // enable stack alignment check
+        "orr x4, x4, #(1 << 3)",
+        // disable instruction cache
+        "bic x4, x4, #(1 << 12)",
+        // enable WXN protection
+        "orr x4, x4, #(1 << 19)",
+        // set exception endianness to little endian
+        "bic x4, x4, #(1 << 25)",
+        // set SCTLR_EL3
+        "msr sctlr_el3, x4",
+        // Secure Configuration
+        // use AArch64 for next lower exception levels (bit 10)
+        // enable HVC at EL3/2/1 (bit 8)
+        // set non-secure state for lower exception levels (bit 0)
         "mov x4, (1 << 10) | (1 << 8) | (1 << 0)",
         "msr scr_el3, x4",
+        // Hypervisor Configuration - set execution state for EL1 to AArch64
+        "mov x4, (1 << 31)",
+        "msr hcr_el2, x4",
         // Architectural Feature Trap - don't trap any
         "mov x4, xzr",
         "msr cptr_el3, x4",
-        // FIXME / TODO: Will fail if CPU doesn't support EL2
-        // -> use ID_AA64PFR0_EL1 to check for EL2 support
-        // Program Status - mask exceptions and set EL2h
-        "mov x4, (0b1111 << 6) | 0b1001",
+        "msr cptr_el2, x4",
+        // Program Status - mask exceptions and set EL1h
+        "mov x4, (0b1111 << 6) | 0b0101",
         "msr spsr_el3, x4",
         // Exception Link
         "adr x4, _start_primary",
@@ -106,7 +127,24 @@ extern "C" fn _start_el3() {
 #[unsafe(no_mangle)]
 extern "C" fn _start_el2() {
     naked_asm!(
-        // TODO: System Control
+        // System Control
+        "mrs x4, sctlr_el2",
+        // disable MMU
+        "bic x4, x4, #(1 << 0)",
+        // enable alignment check
+        "orr x4, x4, #(1 << 1)",
+        // disable data cache
+        "bic x4, x4, #(1 << 2)",
+        // enable stack alignment check
+        "orr x4, x4, #(1 << 3)",
+        // disable instruction cache
+        "bic x4, x4, #(1 << 12)",
+        // enable WXN protection
+        "orr x4, x4, #(1 << 19)",
+        // set exception endianness to little endian
+        "bic x4, x4, #(1 << 25)",
+        // set SCTLR_EL2
+        "msr sctlr_el2, x4",
         // Hypervisor Configuration - set execution state for EL1 to AArch64
         "mov x4, (1 << 31)",
         "msr hcr_el2, x4",
@@ -134,7 +172,26 @@ extern "C" fn _start_el1() {
     naked_asm!(
         // preserve DTB pointer from x0 to x20
         "mov x20, x0",
-        // TODO: System Control
+        // System Control
+        "mrs x4, sctlr_el1",
+        // disable MMU
+        "bic x4, x4, #(1 << 0)",
+        // enable alignment check
+        "orr x4, x4, #(1 << 1)",
+        // disable data cache
+        "bic x4, x4, #(1 << 2)",
+        // enable stack alignment check
+        "orr x4, x4, #(1 << 3)",
+        "orr x4, x4, #(1 << 4)",
+        // disable WXN protection
+        "bic x4, x4, #(1 << 19)",
+        // set explicit data access at EL0 to little-endian
+        "bic x4, x4, #(1 << 24)",
+        // set exception endianness to little-endian
+        "bic x4, x4, #(1 << 25)",
+        // disable cache maintenance instructions in EL0
+        "bic x4, x4, #(1 << 26)",
+        "msr sctlr_el1, x4",
         // Coprocessor Access Control
         "mrs x4, cpacr_el1",
         "orr x4, x4, #(0b11 << 20)",
