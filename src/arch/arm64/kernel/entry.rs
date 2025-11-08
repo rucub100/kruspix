@@ -1,5 +1,13 @@
 use core::arch::naked_asm;
 
+/// Entry point for the kernel.
+/// This function is called by the bootloader or the firmware.
+///
+/// Starts primary core and parks secondary cores.
+///
+/// ### Important
+/// Do not use or modify registers `x0` to `x3` in this function as they may contain
+/// important boot information (e.g. DTB pointer in `x0`).
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
@@ -9,6 +17,11 @@ pub extern "C" fn _start() -> ! {
     );
 }
 
+/// Park secondary cores in a low-power state.
+///
+/// ### Important
+/// Do not use or modify registers `x0` to `x3` in this function as they may contain
+/// important boot information (e.g. DTB pointer in `x0`).
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 extern "C" fn _park_secondary_cores() {
@@ -27,6 +40,14 @@ extern "C" fn _park_secondary_cores() {
     );
 }
 
+/// Entry point for the primary core.
+/// 
+/// This function checks the current exception level and branches to the appropriate
+/// initialization function for that level.
+///
+/// ### Important
+/// Do not use or modify registers `x0` to `x3` in this function as they may contain
+/// important boot information (e.g. DTB pointer in `x0`).
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start_primary() -> ! {
@@ -47,43 +68,77 @@ pub extern "C" fn _start_primary() -> ! {
     );
 }
 
+/// Initialization and configuration for EL3 (Secure Monitor).
+/// 
+/// ### Important
+/// Do not use or modify registers `x0` to `x3` in this function as they may contain
+/// important boot information (e.g. DTB pointer in `x0`).
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 extern "C" fn _start_el3() {
     naked_asm!(
-        "mrs x4, cpacr_el1",
-        "orr x4, x4, #(0b11 << 20)",
-        "msr  cpacr_el1, x4",
+        // TODO: System Control
+        // TODO: Memory Attribute Indirection
+        // Secure Configuration - TODO
         "mov x4, (1 << 10) | (1 << 8) | (1 << 0)",
         "msr scr_el3, x4",
-        "mov x4, (0b1111 << 6) | 9",
+        // Architectural Feature Trap - don't trap any
+        "mov x4, xzr",
+        "msr cptr_el3, x4",
+        // FIXME / TODO: Will fail if CPU doesn't support EL2
+        // -> use ID_AA64PFR0_EL1 to check for EL2 support
+        // Program Status - mask exceptions and set EL2h
+        "mov x4, (0b1111 << 6) | 0b1001",
         "msr spsr_el3, x4",
+        // Exception Link
         "adr x4, _start_primary",
         "msr elr_el3, x4",
         "eret",
     );
 }
 
+/// Initialization and configuration for EL2 (Hypervisor).
+///
+/// ### Important
+/// Do not use or modify registers `x0` to `x3` in this function as they may contain
+/// important boot information (e.g. DTB pointer in `x0`).
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 extern "C" fn _start_el2() {
     naked_asm!(
+        // TODO: System Control
+        // Hypervisor Configuration - set execution state for EL1 to AArch64
         "mov x4, (1 << 31)",
         "msr hcr_el2, x4",
-        "mov x4, (0b1111 << 6) | 5",
+        // Architectural Feature Trap - don't trap any
+        "mov x4, xzr",
+        "msr cptr_el2, x4",
+        // Program Status - mask exceptions and set EL1h
+        "mov x4, (0b1111 << 6) | 0b0101",
         "msr spsr_el2, x4",
+        // Exception Link
         "adr x5, _start_primary",
         "msr elr_el2, x5",
         "eret",
     );
 }
 
+/// Initialization and configuration for EL1 (Kernel).
+///
+/// ### Important
+/// Do not use or modify registers `x0` to `x3` in this function as they may contain
+/// important boot information (e.g. DTB pointer in `x0`).
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 extern "C" fn _start_el1() {
     naked_asm!(
         // preserve DTB pointer from x0 to x20
         "mov x20, x0",
+        // TODO: System Control
+        // Coprocessor Access Control
+        "mrs x4, cpacr_el1",
+        "orr x4, x4, #(0b11 << 20)",
+        "msr  cpacr_el1, x4",
         // enable early MMU
         "bl _enable_early_mmu",
         "mmu_enabled:",
@@ -109,6 +164,11 @@ extern "C" fn _start_el1() {
     );
 }
 
+/// Enable the MMU with a simple identity-mapped page table.
+///
+/// ### Important
+/// Do not use or modify register `x20` in this function as it is used to preserve
+/// the DTB pointer across calls.
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 extern "C" fn _enable_early_mmu() {
@@ -153,6 +213,7 @@ extern "C" fn _enable_early_mmu() {
         "msr sctlr_el1, x0",
         "isb",
         "ret",
+        // DATA --------------------------------------------------------------------------------
         // setup early page tables
         ".balign 4096",
         "LEVEL_0_TABLE_DESCRIPTOR_0:",
@@ -174,6 +235,11 @@ extern "C" fn _enable_early_mmu() {
     );
 }
 
+/// Zero out the .bss section.
+///
+/// ### Important
+/// Do not use or modify register `x20` in this function as it is used to preserve
+/// the DTB pointer across calls.
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 extern "C" fn _zero_bss() {
