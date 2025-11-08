@@ -1,10 +1,10 @@
 [build]
-target = "aarch64-unknown-none-softfloat"
+target = "aarch64-unknown-none"
 
-[target.aarch64-unknown-none-softfloat]
+[target.aarch64-unknown-none]
 rustflags = [
     # "-C", "link-arg=-Tsrc/arch/arm64/kernel_release.ld", # see build.rs
     "-C", "target-cpu=cortex-a53",
-    # "-C", "target-feature=+neon"
+    "-C", "target-feature=+neon"
 ]
 runner = "qemu-system-aarch64 -machine raspi3b -dtb raspberrypi/bcm2710-rpi-3-b.dtb -kernel"
