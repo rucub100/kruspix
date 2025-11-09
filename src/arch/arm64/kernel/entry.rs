@@ -239,8 +239,10 @@ extern "C" fn _enable_early_mmu() {
         "bfi x2, x3, #0, #6",
         "bfi x2, x3, #16, #6",
         // set TG0 and TG1 to 4KB granule
+        "mov x3, #0b10",
         "bfi x2, xzr, #14, #2",
-        "bfi x2, xzr, #30, #2",
+        "bfi x2, x3, #30, #2",
+        "msr tcr_el1, x2",
         // configure page tables
         "adr x0, LEVEL_0_TABLE_DESCRIPTOR_0",
         "msr ttbr0_el1, x0",
@@ -257,7 +259,6 @@ extern "C" fn _enable_early_mmu() {
         "str x4, [x3]",
         "orr x3, x3, #0b11",
         "str x3, [x1]",
-        "msr tcr_el1, x2",
         // Device-nGnRnE memory for all memory
         "mov x0, #0x00",
         "msr mair_el1, x0",
