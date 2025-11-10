@@ -6,6 +6,7 @@ use crate::framebuffer::{init_framebuffer, print};
 use crate::setup::setup_arch;
 
 mod panic_handler;
+mod drivers;
 mod kernel;
 mod mm;
 
@@ -24,6 +25,7 @@ mod framebuffer;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn start_kernel() -> ! {
+    kprintln!("\n\n\n\n\n\nStarting kruspix kernel...");
     // TODO: Arch-specific setup (device tree, etc)
     setup_arch();
     // TODO: memory management setup
@@ -39,10 +41,14 @@ pub extern "C" fn start_kernel() -> ! {
     // TODO: setup root user space process a.k.a. init
     // TODO: Enable interrupts and start normal operation
 
+    kprintln!("Initialiizing framebuffer...");
     init_framebuffer();
 
+    // TODO: Remove once we have proper drivers
+    kprintln!("Disabling watchdog...");
     bcm2835_wdt_disable();
 
+    kprintln!("Testing framebuffer print...");
     print("Hello world!");
 
     loop {

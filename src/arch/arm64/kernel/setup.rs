@@ -1,11 +1,18 @@
 use core::iter;
 
 use crate::kernel::boot::devicetree::Fdt;
+use crate::kprintln;
 // use crate::mm::init_phys_mem;
 
 pub fn setup_arch() {
+    kprintln!("Parsing FDT...");
     let (mem, reserved_mem) = parse_fdt().unwrap();
     let (kernel_addr, kernel_size) = kernel_addr_size();
+    kprintln!(
+        "Kernel address: {:#x}, size: {:#x} bytes",
+        kernel_addr, kernel_size
+    );
+    kprintln!("Calculating available physical memory...");
     let mem = calc_available_mem(mem, &reserved_mem, (kernel_addr, kernel_size));
 
     // init_phys_mem(&mem);
