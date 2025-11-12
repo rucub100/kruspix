@@ -55,6 +55,43 @@ cargo objcopy --release -- -O binary target/kruspix.img
 
 TODO: How to start the kernel in QEMU?
 
+### Raspberry Pi `config.txt`
+
+```text
+# do not modify this file as it will be overwritten on upgrade.
+# create and/or modify usercfg.txt instead.
+# https://www.raspberrypi.com/documentation/computers/config_txt.html
+
+#kernel=boot/vmlinuz-rpi
+kernel=boot/kruspix.img
+#initramfs boot/initramfs-rpi
+arm_64bit=1
+#include usercfg.txt
+enable_uart=1
+uart_2ndstage=1
+dtparam=watchdog=off
+#gpio=22-27=np
+enable_jtag_gpio=1
+# UM232H        FT232H    JTAG        RPi3 GPIO
+# Name  Pin     Name      Func        Pin
+# AD0   J2-6    ADBUS0    TCK         25
+# AD1   J2-7    ADBUS1    TDI         26
+# AD2   J2-8    ADBUS2    TDO         24
+# AD3   J2-9    ADBUS3    TMS         27
+# AD4   J2-10   ADBUS4    (GPIOL0)    22
+# AD5   J2-11   ADBUS5    (GPIOL1)    
+# AD6   J2-12   ADBUS6    (GPIOL2)    
+# AD7   J2-13   ADBUS7    (GPIOL3)    
+# AD0   J1-14   ACBUS0    /TRST       
+# AD1   J1-13   ACBUS1    /SRST       
+# AD2   J1-12   ACBUS2    (GPIOH2)    
+# AD3   J1-11   ACBUS3    (GPIOH3)    
+# AD4   J1-10   ACBUS4    (GPIOH4)    
+# AD5   J1-9    ACBUS5    (GPIOH5)    
+# AD6   J1-8    ACBUS6    (GPIOH6)    
+# AD7   J1-7    ACBUS7    (GPIOH7)    
+```
+
 ## Roadmap
 
 ### Milestones (WIP)
