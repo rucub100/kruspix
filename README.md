@@ -92,6 +92,12 @@ enable_jtag_gpio=1
 # AD7   J1-7    ACBUS7    (GPIOH7)    
 ```
 
+### JTAG Debugging
+
+```shell
+openocd -f interface/ftdi/um232h.cfg -f board/rpi3.cfg
+```
+
 ## Roadmap
 
 ### Milestones (WIP)
