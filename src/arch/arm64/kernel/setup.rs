@@ -17,10 +17,12 @@ pub extern "C" fn setup_arch() {
     }
 
     let (kernel_addr, kernel_size) = kernel_addr_size();
+    let kernel_bss_size = kernel_bss_size();
     kprintln!(
-        "Kernel address: {:#x}, size: {:#x} bytes",
+        "Kernel address: {:#x}, size: {:#x} bytes, BSS size: {:#x} bytes",
         kernel_addr,
-        kernel_size
+        kernel_size,
+        kernel_bss_size
     );
 
     kprintln!("Parsing Flattened Device Tree (FDT)...");
@@ -45,6 +47,20 @@ fn kernel_addr_size() -> (usize, usize) {
     }
 
     (kernel_start, kernel_end - kernel_start)
+}
+
+fn kernel_bss_size() -> usize {
+    let bss_start: usize;
+    let bss_end: usize;
+
+    unsafe {
+        core::arch::asm!("
+            ldr {}, =__bss_start
+            ldr {}, =__bss_end
+        ", out(reg) bss_start, out(reg) bss_end);
+    }
+
+    bss_end - bss_start
 }
 
 fn parse_fdt(fdt_addr: usize) -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {
