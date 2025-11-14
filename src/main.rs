@@ -43,10 +43,6 @@ pub extern "C" fn start_kernel() -> ! {
     kprintln!("Initialiizing framebuffer...");
     init_framebuffer();
 
-    // TODO: Remove once we have proper drivers
-    kprintln!("Disabling watchdog...");
-    bcm2835_wdt_disable();
-
     kprintln!("Testing framebuffer print...");
     print("Hello world!");
 
