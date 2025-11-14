@@ -28,11 +28,13 @@ SECTIONS {
     }
 
     /* Discard debug sections */
+    /* DON'T DISCARD THESE SECTIONS IF YOU WANT TO KEEP DEBUG INFO
     /DISCARD/ : {
         *(.comment)
         *(.eh_frame)
         *(.debug_*)
     }
+    */
 
     _end = .;
 }
