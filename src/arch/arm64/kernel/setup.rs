@@ -2,7 +2,7 @@ use core::iter;
 
 use crate::kernel::boot::devicetree::Fdt;
 use crate::kprintln;
-// use crate::mm::init_phys_mem;
+use crate::mm::init_phys_mem;
 
 /// Architecture-specific setup function for ARM64.
 ///
@@ -20,7 +20,8 @@ pub extern "C" fn setup_arch() {
     kprintln!("Calculating available physical memory...");
     let mem = calc_available_mem(mem, &reserved_mem, (kernel_addr, kernel_size));
 
-    // init_phys_mem(&mem);
+    // TODO: public API should also know about the reserved memory regions and the kernel region
+    init_phys_mem(&mem);
 }
 
 fn parse_fdt() -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {
