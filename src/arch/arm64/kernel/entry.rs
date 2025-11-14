@@ -170,6 +170,10 @@ extern "C" fn _start_el2() {
 #[unsafe(no_mangle)]
 extern "C" fn _start_el1() {
     naked_asm!(
+        // JTAG debugging trap
+        // "jtag:",
+        // "wfe",
+        // "b jtag",
         // preserve DTB pointer from x0 to x20
         "mov x20, x0",
         // System Control
@@ -215,6 +219,8 @@ extern "C" fn _start_el1() {
         "0:",
         "wfe",
         "b 0b",
+        // DATA --------------------------------------------------------------------------------
+        // setup early kernel stack
         ".balign 16",
         ".space 0x10000",
         "__stack_top:",

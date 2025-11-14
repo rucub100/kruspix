@@ -26,7 +26,6 @@ mod framebuffer;
 #[unsafe(no_mangle)]
 pub extern "C" fn start_kernel() -> ! {
     kprintln!("\n\n\n\n\n\nStarting kruspix kernel...");
-    // TODO: Arch-specific setup (device tree, etc)
     setup_arch();
     // TODO: memory management setup
     // + setup initial page tables

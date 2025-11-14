@@ -4,7 +4,12 @@ use crate::kernel::boot::devicetree::Fdt;
 use crate::kprintln;
 // use crate::mm::init_phys_mem;
 
-pub fn setup_arch() {
+/// Architecture-specific setup function for ARM64.
+///
+/// This function parses the Flattened Device Tree (FDT),
+/// and initializes the physical memory.
+#[unsafe(no_mangle)]
+pub extern "C" fn setup_arch() {
     kprintln!("Parsing FDT...");
     let (mem, reserved_mem) = parse_fdt().unwrap();
     let (kernel_addr, kernel_size) = kernel_addr_size();
@@ -24,6 +29,8 @@ fn parse_fdt() -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {
     unsafe {
         core::arch::asm!("mov {}, x0", out(reg) fdt_addr);
     }
+
+    kprintln!("FDT address: {:#x}", fdt_addr);
 
     let fdt = Fdt::new(fdt_addr);
     let fdt = fdt.unwrap();
