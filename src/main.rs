@@ -28,10 +28,9 @@ pub extern "C" fn start_kernel() -> ! {
     kprintln!("\n\n\n\n\n\nStarting kruspix kernel...");
     setup_arch();
     // TODO: memory management setup
-    // + setup initial page tables
-    // + enable MMU and virtual memory
-    // + page allocator
+    // + physical page allocator
     // + kernel heap allocator
+    // + update page tables with proper mappings (advanced FDT parsing with heap)
     // TODO: interrupts/exceptions setup
     // TODO: Scheduler setup
     // TODO: SMP system setup (CPU setup)

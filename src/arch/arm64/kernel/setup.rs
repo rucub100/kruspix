@@ -10,40 +10,27 @@ use crate::mm::init_phys_mem;
 /// and initializes the physical memory.
 #[unsafe(no_mangle)]
 pub extern "C" fn setup_arch() {
-    kprintln!("Parsing FDT...");
-    let (mem, reserved_mem) = parse_fdt().unwrap();
-    let (kernel_addr, kernel_size) = kernel_addr_size();
-    kprintln!(
-        "Kernel address: {:#x}, size: {:#x} bytes",
-        kernel_addr, kernel_size
-    );
-    kprintln!("Calculating available physical memory...");
-    let mem = calc_available_mem(mem, &reserved_mem, (kernel_addr, kernel_size));
-
-    // TODO: public API should also know about the reserved memory regions and the kernel region
-    init_phys_mem(&mem);
-}
-
-fn parse_fdt() -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {
     let fdt_addr: usize;
 
     unsafe {
         core::arch::asm!("mov {}, x0", out(reg) fdt_addr);
     }
 
-    kprintln!("FDT address: {:#x}", fdt_addr);
+    let (kernel_addr, kernel_size) = kernel_addr_size();
+    kprintln!(
+        "Kernel address: {:#x}, size: {:#x} bytes",
+        kernel_addr,
+        kernel_size
+    );
 
-    let fdt = Fdt::new(fdt_addr);
-    let fdt = fdt.unwrap();
+    kprintln!("Parsing Flattened Device Tree (FDT)...");
+    let (mem, reserved_mem) = parse_fdt(fdt_addr).unwrap();
 
-    let aliases = fdt.aliases_node();
-    let chosen = fdt.chosen_node();
-    let cpus = fdt.cpus_node()?;
+    kprintln!("Calculating available physical memory...");
+    let mem = calc_available_mem(mem, &reserved_mem, (kernel_addr, kernel_size));
 
-    let memory = fdt.parse_memory().unwrap();
-    let reserved_memory = fdt.parse_reserved_memory().unwrap();
-
-    Ok((memory, reserved_memory))
+    // TODO: public API should also know about the reserved memory regions and the kernel region
+    init_phys_mem(&mem);
 }
 
 fn kernel_addr_size() -> (usize, usize) {
@@ -58,6 +45,22 @@ fn kernel_addr_size() -> (usize, usize) {
     }
 
     (kernel_start, kernel_end - kernel_start)
+}
+
+fn parse_fdt(fdt_addr: usize) -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {
+    kprintln!("FDT address: {:#x}", fdt_addr);
+
+    let fdt = Fdt::new(fdt_addr);
+    let fdt = fdt.unwrap();
+
+    let aliases = fdt.aliases_node();
+    let chosen = fdt.chosen_node();
+    let cpus = fdt.cpus_node()?;
+
+    let memory = fdt.parse_memory().unwrap();
+    let reserved_memory = fdt.parse_reserved_memory().unwrap();
+
+    Ok((memory, reserved_memory))
 }
 
 fn calc_available_mem(
