@@ -11,10 +11,7 @@ use core::arch::naked_asm;
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
-    naked_asm!(
-        "bl _park_secondary_cores",
-        "b _start_primary",
-    );
+    naked_asm!("bl _park_secondary_cores", "b _start_primary");
 }
 
 /// Park secondary cores in a low-power state.
@@ -364,15 +361,8 @@ extern "C" fn _enable_early_mmu() {
         // setup virtual return address
         "mov x7, #0xffff800000000000",
         "add x30, x30, x7",
-        "mrs x2, tcr_el1",
-        // set T0SZ and T1SZ to 16 (48-bit VA)
-        "movz x3, #16",
-        "bfi x2, x3, #0, #6",
-        "bfi x2, x3, #16, #6",
-        // set TG0 and TG1 to 4KB granule
-        "mov x3, #0b10",
-        "bfi x2, xzr, #14, #2",
-        "bfi x2, x3, #30, #2",
+        // setup translation control
+        "ldr x2, =0xB5103510",
         "msr tcr_el1, x2",
         // configure page tables
         "adr x0, LEVEL_0_TABLE_DESCRIPTOR_0",
@@ -396,6 +386,10 @@ extern "C" fn _enable_early_mmu() {
         "isb",
         // read system control register
         "mrs x0, sctlr_el1",
+        // disable data cache
+        "bic x0, x0, #(1 << 2)",
+        // disable instruction cache
+        "bic x0, x0, #(1 << 12)",
         // set the MMU enable bit
         "orr x0, x0, #1",
         // write back to system control register

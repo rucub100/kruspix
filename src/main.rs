@@ -1,27 +1,27 @@
 #![no_std]
 #![no_main]
 
-use crate::bcm2835_wdt::bcm2835_wdt_disable;
 use crate::framebuffer::{init_framebuffer, print};
 use crate::setup::setup_arch;
 
-mod panic_handler;
 mod drivers;
 mod kernel;
 mod mm;
+mod panic_handler;
+
+#[path = "drivers/mailbox/bcm2835_mailbox.rs"]
+mod bcm2835_mailbox;
 
 #[cfg(target_arch = "aarch64")]
 #[path = "arch/arm64/kernel/entry.rs"]
 mod entry;
+
+#[path = "drivers/video/framebuffer.rs"]
+mod framebuffer;
+
 #[cfg(target_arch = "aarch64")]
 #[path = "arch/arm64/kernel/setup.rs"]
 mod setup;
-#[path = "drivers/mailbox/bcm2835_mailbox.rs"]
-mod bcm2835_mailbox;
-#[path = "drivers/watchdog/bcm2835_wdt.rs"]
-mod bcm2835_wdt;
-#[path = "drivers/video/framebuffer.rs"]
-mod framebuffer;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn start_kernel() -> ! {
