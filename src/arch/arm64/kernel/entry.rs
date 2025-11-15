@@ -176,6 +176,9 @@ extern "C" fn _start_el1() {
         // "b jtag",
         // preserve DTB pointer from x0 to x20
         "mov x20, x0",
+        // set up early exception vector table
+        "adr x0, EARLY_VECTOR_TABLE",
+        "msr vbar_el1, x0",
         // System Control
         "mrs x4, sctlr_el1",
         // disable MMU
@@ -203,8 +206,11 @@ extern "C" fn _start_el1() {
         // enable early MMU
         "bl _enable_early_mmu",
         "mmu_enabled:",
+        // update early exception vector table to it's virtual address
+        "adr x0, EARLY_VECTOR_TABLE",
+        "msr vbar_el1, x0",
         // set up the stack pointer
-        "ldr x0, =__stack_top",
+        "adr x0, __stack_top",
         "mov sp, x0",
         // clear frame pointer and link register
         "mov x29, xzr",
@@ -220,10 +226,129 @@ extern "C" fn _start_el1() {
         "wfe",
         "b 0b",
         // DATA --------------------------------------------------------------------------------
-        // setup early kernel stack
+        // setup early kernel stack (64KB)
         ".balign 16",
         ".space 0x10000",
         "__stack_top:",
+        // setup early exception vector table
+        ".balign 2048",
+        "EARLY_VECTOR_TABLE:",
+        // EL1t
+        // - Synchronous
+        ".balign 128",
+        "b 1f",
+        ".quad 1",
+        "1:",
+        "wfe",
+        "b 1b",
+        // - IRQ
+        ".balign 128",
+        "b 2f",
+        ".quad 2",
+        "2:",
+        "wfe",
+        "b 2b",
+        // - FIQ
+        ".balign 128",
+        "b 3f",
+        ".quad 3",
+        "3:",
+        "wfe",
+        "b 3b",
+        // - SError
+        ".balign 128",
+        "b 4f",
+        ".quad 4",
+        "4:",
+        "wfe",
+        "b 4b",
+        // EL1h
+        // - Synchronous
+        ".balign 128",
+        "b 5f",
+        ".quad 5",
+        "5:",
+        "wfe",
+        "b 5b",
+        // - IRQ
+        ".balign 128",
+        "b 6f",
+        ".quad 6",
+        "6:",
+        "wfe",
+        "b 6b",
+        // - FIQ
+        ".balign 128",
+        "b 7f",
+        ".quad 7",
+        "7:",
+        "wfe",
+        "b 7b",
+        // - SError
+        ".balign 128",
+        "b 8f",
+        ".quad 8",
+        "8:",
+        "wfe",
+        "b 8b",
+        // EL0 using Aarch64
+        // - Synchronous
+        ".balign 128",
+        "b 9f",
+        ".quad 9",
+        "9:",
+        "wfe",
+        "b 9b",
+        // - IRQ
+        ".balign 128",
+        "b 10f",
+        ".quad 10",
+        "10:",
+        "wfe",
+        "b 10b",
+        // - FIQ
+        ".balign 128",
+        "b 11f",
+        ".quad 11",
+        "11:",
+        "wfe",
+        "b 11b",
+        // - SError
+        ".balign 128",
+        "b 12f",
+        ".quad 12",
+        "12:",
+        "wfe",
+        "b 12b",
+        // EL0 using Aarch32
+        // - Synchronous
+        ".balign 128",
+        "b 13f",
+        ".quad 13",
+        "13:",
+        "wfe",
+        "b 13b",
+        // - IRQ
+        ".balign 128",
+        "b 14f",
+        ".quad 14",
+        "14:",
+        "wfe",
+        "b 14b",
+        // - FIQ
+        ".balign 128",
+        "b 15f",
+        ".quad 15",
+        "15:",
+        "wfe",
+        "b 15b",
+        // - SError
+        ".balign 128",
+        "b 16f",
+        ".quad 16",
+        "16:",
+        "wfe",
+        "b 16b",
     );
 }
 
