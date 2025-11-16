@@ -362,26 +362,25 @@ extern "C" fn _enable_early_mmu() {
         "mov x7, #0xffff800000000000",
         "add x30, x30, x7",
         // setup translation control
-        "ldr x2, =0xB5103510",
+        "ldr x2, =0xb5103510",
         "msr tcr_el1, x2",
         // configure page tables
         "adr x0, LEVEL_0_TABLE_DESCRIPTOR_0",
         "msr ttbr0_el1, x0",
         "adr x3, LEVEL_1_BLOCK_DESCRIPTOR_0",
-        "mov x4, #0x701",
-        "str x4, [x3]",
         "orr x3, x3, #0b11",
         "str x3, [x0]",
         "adr x1, LEVEL_0_TABLE_DESCRIPTOR_1",
         "msr ttbr1_el1, x1",
         "add x1, x1, #0x800",
         "adr x3, LEVEL_1_BLOCK_DESCRIPTOR_1",
-        "mov x4, #0x701",
-        "str x4, [x3]",
         "orr x3, x3, #0b11",
         "str x3, [x1]",
-        // Device-nGnRnE memory for all memory
-        "mov x0, #0x00",
+        // Memory Attribute Indirection
+        // -> Attr0 - Device-nGnRnE
+        // -> Attr1 - Normal memory, non-cacheable
+        // -> Attr2 - Normal memory, write-back non-transient read/write allocate
+        "ldr x0, =0xff4400",
         "msr mair_el1, x0",
         "isb",
         // read system control register
@@ -409,11 +408,13 @@ extern "C" fn _enable_early_mmu() {
         ".endr",
         "LEVEL_1_BLOCK_DESCRIPTOR_0:",
         ".rept 512",
+        // AF = 1; SH = inner sharable; AttrIndx = 0
         ".quad 0x701",
         ".endr",
         "LEVEL_1_BLOCK_DESCRIPTOR_1:",
         ".rept 512",
-        ".quad 0x701",
+        // AF = 1; SH = inner sharable; AttrIndx = 1
+        ".quad 0x705",
         ".endr",
     );
 }

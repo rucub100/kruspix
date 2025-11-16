@@ -1,6 +1,11 @@
 pub mod allocator;
 
 static mut GLOBAL_PHYS_MEM_INIT: bool = false;
+
+/// Available physical memory regions.
+///
+/// For now, we support up to 32 contiguous regions to keep track of normal memory
+/// available to the physical page allocator.
 static mut GLOBAL_PHYS_MEM: [(usize, usize); 32] = [(0, 0); 32];
 
 /// Initialize early physical memory management.
