@@ -47,9 +47,15 @@ TODO: Add instructions on minimal steps to build and run locally (QEMU and hardw
 
 TODO: User a Dockerfile for a consistent build environment?
 
+#### Build the kernel image
 ```shell
 cargo objcopy --release -- -O binary target/kruspix.img
 ```
+#### Windows: copy to microSD card and eject
+```shell
+cp .\target\kruspix.img H:\boot\kruspix.img; (New-Object -ComObject Shell.Application).Namespace(17).ParseName("H:").InvokeVerb("Eject")
+```
+
 
 ### Qemu (WIP)
 
