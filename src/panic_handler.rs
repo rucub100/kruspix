@@ -3,14 +3,14 @@ use crate::kprintln;
 
 #[panic_handler]
 pub fn panic(_info: &PanicInfo) -> ! {
-    kprintln!("\n\n\n\n\n\nPANIC OCCURRED:");
+    kprintln!("\n\n\n\n\n\n[kruspix] PANIC OCCURRED:");
     if let Some(location) = _info.location() {
-        kprintln!("  File: {}:{}:{}", location.file(), location.line(), location.column());
+        kprintln!("[kruspix]   File: {}:{}:{}", location.file(), location.line(), location.column());
     } else {
-        kprintln!("  No location information available.");
+        kprintln!("[kruspix]   No location information available.");
     }
 
-    kprintln!("  Message: {}", _info.message());
+    kprintln!("[kruspix]   Message: {}", _info.message());
     
     loop {}
 }

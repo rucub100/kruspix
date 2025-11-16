@@ -1,15 +1,14 @@
-use core::iter;
-
 use crate::kernel::boot::devicetree::Fdt;
+use crate::kernel::{kernel_addr_size, kernel_bss_size};
 use crate::kprintln;
-use crate::mm::init_phys_mem;
+use crate::mm::{BOOT_PHYS_MEM_MANAGER, PageFrameAllocator, init_phys_mem};
 
 /// Architecture-specific setup function for ARM64.
 ///
 /// This function parses the Flattened Device Tree (FDT),
 /// and initializes the physical memory.
 #[unsafe(no_mangle)]
-pub extern "C" fn setup_arch() {
+pub fn setup_arch() {
     let fdt_addr: usize;
 
     unsafe {
@@ -19,52 +18,21 @@ pub extern "C" fn setup_arch() {
     let (kernel_addr, kernel_size) = kernel_addr_size();
     let kernel_bss_size = kernel_bss_size();
     kprintln!(
-        "Kernel address: {:#x}, size: {:#x} bytes, BSS size: {:#x} bytes",
+        "[kruspix] Kernel address: {:#x}, size: {:#x} bytes, BSS size: {:#x} bytes",
         kernel_addr,
         kernel_size,
         kernel_bss_size
     );
 
-    kprintln!("Parsing Flattened Device Tree (FDT)...");
+    kprintln!("[kruspix] Parsing Flattened Device Tree (FDT)...");
     let (mem, reserved_mem) = parse_fdt(fdt_addr).unwrap();
 
-    kprintln!("Calculating available physical memory...");
-    let mem = calc_available_mem(mem, &reserved_mem, (kernel_addr, kernel_size));
-
-    // TODO: public API should also know about the reserved memory regions and the kernel region
-    init_phys_mem(&mem);
-}
-
-fn kernel_addr_size() -> (usize, usize) {
-    let kernel_start: usize;
-    let kernel_end: usize;
-
-    unsafe {
-        core::arch::asm!("
-            ldr {}, =_start
-            ldr {}, =_end
-        ", out(reg) kernel_start, out(reg) kernel_end);
-    }
-
-    (kernel_start, kernel_end - kernel_start)
-}
-
-fn kernel_bss_size() -> usize {
-    let bss_start: usize;
-    let bss_end: usize;
-
-    unsafe {
-        core::arch::asm!("
-            ldr {}, =__bss_start
-            ldr {}, =__bss_end
-        ", out(reg) bss_start, out(reg) bss_end);
-    }
-
-    bss_end - bss_start
+    kprintln!("[kruspix] Initializing physical memory...");
+    init_phys_mem(mem, reserved_mem, (kernel_addr, kernel_size), fdt_addr);
 }
 
 fn parse_fdt(fdt_addr: usize) -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {
-    kprintln!("FDT address: {:#x}", fdt_addr);
+    kprintln!("[kruspix] FDT address: {:#x}", fdt_addr);
 
     let fdt = Fdt::new(fdt_addr);
     let fdt = fdt.unwrap();
@@ -77,83 +45,4 @@ fn parse_fdt(fdt_addr: usize) -> Result<([(usize, usize); 32], [(usize, usize); 
     let reserved_memory = fdt.parse_reserved_memory().unwrap();
 
     Ok((memory, reserved_memory))
-}
-
-fn calc_available_mem(
-    mut mem: [(usize, usize); 32],
-    reserved_mem: &[(usize, usize); 32],
-    kernel_region: (usize, usize),
-) -> [(usize, usize); 32] {
-    let mut mem_skip = 0;
-    let mut mem_index = mem.iter().position(|(_, size)| *size == 0).unwrap_or(32);
-
-    loop {
-        let mut new_mem = [(0, 0); 32];
-        let mut new_mem_index = 0;
-
-        for (mem_addr, mem_size) in mem.iter_mut().filter(|(_, size)| *size != 0).skip(mem_skip) {
-            for (rsv_addr, rsv_size) in reserved_mem
-                .iter()
-                .filter(|(_, size)| *size != 0)
-                .chain(iter::once(&kernel_region))
-            {
-                let diff = region_diff((*mem_addr, *mem_size), (*rsv_addr, *rsv_size));
-
-                *mem_addr = diff[0].0;
-                *mem_size = diff[0].1;
-
-                if diff[1].1 != 0 {
-                    new_mem[new_mem_index] = diff[1];
-                    new_mem_index += 1;
-                }
-            }
-        }
-
-        if new_mem_index == 0 || mem_index >= 32 {
-            break;
-        }
-
-        mem[mem_index..32].copy_from_slice(&new_mem[0..32 - mem_index]);
-        mem_skip = mem_index;
-        mem_index += new_mem_index;
-    }
-
-    return mem;
-
-    fn region_diff(
-        (mem_addr, mem_size): (usize, usize),
-        (rsv_addr, rsv_size): (usize, usize),
-    ) -> [(usize, usize); 2] {
-        match (mem_addr, mem_size, rsv_addr, rsv_size) {
-            (mem_addr, mem_size, rsv_addr, rsv_size)
-                if rsv_addr + rsv_size <= mem_addr || mem_addr + mem_size <= rsv_addr =>
-            {
-                [(mem_addr, mem_size), (0, 0)]
-            }
-            (mem_addr, mem_size, rsv_addr, rsv_size)
-                if rsv_addr <= mem_addr && rsv_addr + rsv_size < mem_addr + mem_size =>
-            {
-                [
-                    (
-                        rsv_addr + rsv_size,
-                        mem_size - (rsv_addr + rsv_size - mem_addr),
-                    ),
-                    (0, 0),
-                ]
-            }
-            (mem_addr, mem_size, rsv_addr, rsv_size) if rsv_addr <= mem_addr => [(0, 0), (0, 0)],
-            (mem_addr, mem_size, rsv_addr, rsv_size)
-                if mem_addr + mem_size <= rsv_addr + rsv_size =>
-            {
-                [(mem_addr, rsv_addr - mem_addr), (0, 0)]
-            }
-            _ => [
-                (mem_addr, rsv_addr - mem_addr),
-                (
-                    rsv_addr + rsv_size,
-                    (mem_addr + mem_size) - (rsv_addr + rsv_size),
-                ),
-            ],
-        }
-    }
 }

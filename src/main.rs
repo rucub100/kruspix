@@ -25,7 +25,7 @@ mod setup;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn start_kernel() -> ! {
-    kprintln!("\n\n\n\n\n\nStarting kruspix kernel...");
+    kprintln!("\n\n\n\n\n\n[kruspix] Starting kruspix kernel...");
     setup_arch();
     // TODO: memory management setup
     // + physical page allocator
@@ -39,10 +39,10 @@ pub extern "C" fn start_kernel() -> ! {
     // TODO: setup root user space process a.k.a. init
     // TODO: Enable interrupts and start normal operation
 
-    kprintln!("Initialiizing framebuffer...");
+    kprintln!("[kruspix] Initialiizing framebuffer...");
     init_framebuffer();
 
-    kprintln!("Testing framebuffer print...");
+    kprintln!("[kruspix] Testing framebuffer print...");
     print("Hello world!");
 
     loop {
