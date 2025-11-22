@@ -8,6 +8,7 @@ pub use frame_allocator::PageFrameAllocator;
 
 mod allocator;
 mod frame_allocator;
+pub mod layout;
 mod memory;
 
 pub struct BootPhysMemManager {
