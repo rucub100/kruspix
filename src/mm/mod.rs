@@ -1,10 +1,8 @@
+use core::iter;
+
 use crate::kernel::boot::sync::BootCell;
 use crate::mm::memory::calc_available_mem;
 use crate::{kprint, kprintln};
-
-use core::iter;
-
-pub use frame_allocator::PageFrameAllocator;
 
 mod allocator;
 mod frame_allocator;

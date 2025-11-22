@@ -1,7 +1,9 @@
 use crate::kernel::boot::devicetree::Fdt;
 use crate::kernel::{kernel_addr_size, kernel_bss_size};
 use crate::kprintln;
-use crate::mm::{BOOT_PHYS_MEM_MANAGER, PageFrameAllocator, init_phys_mem};
+use crate::mm::init_phys_mem;
+
+use crate::arch::mm::mmu::setup_page_tables;
 
 /// Architecture-specific setup function for ARM64.
 ///
@@ -29,20 +31,18 @@ pub fn setup_arch() {
 
     kprintln!("[kruspix] Initializing physical memory...");
     init_phys_mem(mem, reserved_mem, (kernel_addr, kernel_size), fdt_addr);
+
+    kprintln!("[kruspix] Setup page tables...");
+    setup_page_tables();
 }
 
 fn parse_fdt(fdt_addr: usize) -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {
     kprintln!("[kruspix] FDT address: {:#x}", fdt_addr);
 
-    let fdt = Fdt::new(fdt_addr);
-    let fdt = fdt.unwrap();
+    let fdt = Fdt::new(fdt_addr)?;
 
-    let aliases = fdt.aliases_node();
-    let chosen = fdt.chosen_node();
-    let cpus = fdt.cpus_node()?;
-
-    let memory = fdt.parse_memory().unwrap();
-    let reserved_memory = fdt.parse_reserved_memory().unwrap();
+    let memory = fdt.parse_memory()?;
+    let reserved_memory = fdt.parse_reserved_memory()?;
 
     Ok((memory, reserved_memory))
 }

@@ -1,5 +1,5 @@
 use core::mem::size_of;
-use core::{ptr, slice};
+use core::ptr;
 
 pub unsafe trait PageFrameAllocator {
     /// Allocate a page frame and return its starting address.

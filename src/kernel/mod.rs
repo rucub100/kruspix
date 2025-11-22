@@ -2,8 +2,6 @@ use crate::mm::layout::LINEAR_MAP_OFFSET;
 
 pub mod boot;
 
-
-
 #[inline]
 pub fn virt_to_phys(va: usize) -> usize {
     if va >= LINEAR_MAP_OFFSET {

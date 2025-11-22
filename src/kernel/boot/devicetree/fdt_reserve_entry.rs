@@ -1,5 +1,3 @@
-use core::ptr;
-
 /// Representation of a reserved memory entry in a Flattened Device Tree (FDT).
 #[repr(C, align(8))]
 pub struct FdtReserveEntry {

@@ -1,9 +1,9 @@
 #![no_std]
 #![no_main]
 
-use crate::framebuffer::{init_framebuffer, print};
-use crate::setup::setup_arch;
+use crate::arch::kernel::setup::setup_arch;
 
+mod arch;
 mod drivers;
 mod kernel;
 mod mm;
@@ -12,16 +12,8 @@ mod panic_handler;
 #[path = "drivers/mailbox/bcm2835_mailbox.rs"]
 mod bcm2835_mailbox;
 
-#[cfg(target_arch = "aarch64")]
-#[path = "arch/arm64/kernel/entry.rs"]
-mod entry;
-
 #[path = "drivers/video/framebuffer.rs"]
 mod framebuffer;
-
-#[cfg(target_arch = "aarch64")]
-#[path = "arch/arm64/kernel/setup.rs"]
-mod setup;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn start_kernel() -> ! {
@@ -39,7 +31,8 @@ pub extern "C" fn start_kernel() -> ! {
     // TODO: setup root user space process a.k.a. init
     // TODO: Enable interrupts and start normal operation
 
-    kprintln!("[kruspix] Initialiizing framebuffer...");
+    use crate::framebuffer::{init_framebuffer, print};
+        kprintln!("[kruspix] Initializing framebuffer...");
     init_framebuffer();
 
     kprintln!("[kruspix] Testing framebuffer print...");

@@ -1,5 +1,4 @@
 use core::cell::UnsafeCell;
-use core::ops::{Deref, DerefMut};
 
 /// A wrapper that allows global mutable access without atomics.
 ///

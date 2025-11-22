@@ -1,1 +1,0 @@
-/// TODO: Temporary device tree code specific to bcm2837???
