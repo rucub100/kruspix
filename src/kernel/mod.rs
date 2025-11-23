@@ -1,15 +1,6 @@
-use crate::mm::layout::LINEAR_MAP_OFFSET;
+use crate::mm::virt_to_phys;
 
 pub mod boot;
-
-#[inline]
-pub fn virt_to_phys(va: usize) -> usize {
-    if va >= LINEAR_MAP_OFFSET {
-        va - LINEAR_MAP_OFFSET
-    } else {
-        va
-    }
-}
 
 pub fn kernel_addr_size() -> (usize, usize) {
     let kernel_start: usize;

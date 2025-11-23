@@ -47,7 +47,7 @@ extern "C" fn _park_secondary_cores() {
 /// important boot information (e.g. DTB pointer in `x0`).
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
-pub extern "C" fn _start_primary() -> ! {
+extern "C" fn _start_primary() -> ! {
     naked_asm!(
         // check current exception level
         "mrs x4, CurrentEL",

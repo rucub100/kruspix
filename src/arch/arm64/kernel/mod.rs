@@ -1,2 +1,2 @@
-mod entry;
+pub mod entry;
 pub mod setup;

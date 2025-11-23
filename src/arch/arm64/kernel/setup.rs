@@ -33,7 +33,9 @@ pub fn setup_arch() {
     init_phys_mem(mem, reserved_mem, (kernel_addr, kernel_size), fdt_addr);
 
     kprintln!("[kruspix] Setup page tables...");
-    setup_page_tables();
+    unsafe {
+        setup_page_tables();
+    }
 }
 
 fn parse_fdt(fdt_addr: usize) -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {

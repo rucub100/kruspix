@@ -6,16 +6,26 @@ use core::cell::UnsafeCell;
 /// This must ONLY be used during the single-core boot phase.
 /// Once secondary cores are active, this becomes UNSAFE.
 pub struct BootCell<T> {
-    data: UnsafeCell<T>,
+    data: UnsafeCell<Option<T>>,
 }
 
 unsafe impl<T> Sync for BootCell<T> {}
 
 impl<T> BootCell<T> {
-    pub const fn new(data: T) -> Self {
+    pub const fn new() -> Self {
         Self {
-            data: UnsafeCell::new(data),
+            data: UnsafeCell::new(None),
         }
+    }
+
+    pub fn init(&self, data: T) {
+        let ptr = unsafe { &mut *self.data.get() };
+
+        if ptr.is_some() {
+            panic!("BootCell already initialized!");
+        }
+
+        *ptr = Some(data);
     }
 
     /// Get exclusive access to the inner data.
@@ -25,6 +35,11 @@ impl<T> BootCell<T> {
     pub fn lock(&self) -> &mut T {
         // in a real spinlock, we would atomic loop here
         // in this boot wrapper, we just hand it out
-        unsafe { &mut *self.data.get() }
+        let ptr = unsafe { &mut *self.data.get() };
+
+        match ptr {
+            Some(data) => data,
+            None => panic!("BootCell not initialized!"),
+        }
     }
 }
