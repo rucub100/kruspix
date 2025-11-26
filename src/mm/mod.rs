@@ -1,4 +1,5 @@
 use core::iter;
+use core::ptr;
 
 use crate::kernel::boot::sync::BootCell;
 use crate::mm::frame_allocator::{BitMapFrameAllocator, PageFrameAllocator};
@@ -8,6 +9,7 @@ use crate::{kprint, kprintln};
 
 mod allocator;
 mod frame_allocator;
+mod heap_allocator;
 pub mod layout;
 mod memory;
 
@@ -59,7 +61,7 @@ pub fn init_phys_mem(
 }
 
 #[inline]
-pub fn virt_to_phys(va: usize) -> usize {
+pub const fn virt_to_phys(va: usize) -> usize {
     if va >= LINEAR_MAP_OFFSET {
         va - LINEAR_MAP_OFFSET
     } else {
@@ -68,14 +70,42 @@ pub fn virt_to_phys(va: usize) -> usize {
 }
 
 #[inline]
-pub fn phys_to_virt(pa: usize) -> usize {
+pub const fn phys_to_virt(pa: usize) -> usize {
     pa + LINEAR_MAP_OFFSET
 }
 
+#[inline]
 pub fn alloc_frame() -> *mut u8 {
     unsafe { BOOT_PHYS_MEM_MANAGER.lock().allocator.alloc_frame() }
 }
 
+#[inline]
 pub fn dealloc_frame(ptr: *mut u8) {
     unsafe { BOOT_PHYS_MEM_MANAGER.lock().allocator.dealloc_frame(ptr) }
+}
+
+/// Allocates a physical frame and returns its linearly mapped virtual address.
+///
+/// Returns `ptr::null_mut()` if the allocation fails.
+///
+/// # Safety
+/// The returned memory is uninitialized.
+#[inline]
+pub fn alloc_page() -> *mut u8 {
+    unsafe {
+        let frame_ptr = alloc_frame();
+
+        if frame_ptr.is_null() {
+            return ptr::null_mut();
+        }
+
+        phys_to_virt(frame_ptr as usize) as *mut u8
+    }
+}
+
+#[inline]
+pub fn dealloc_page(ptr: *mut u8) {
+    unsafe {
+        dealloc_frame(virt_to_phys(ptr as usize) as *mut u8);
+    }
 }

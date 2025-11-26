@@ -5,18 +5,6 @@
 
 pub const PAGE_SIZE: usize = 4096;
 
-pub const PAGE_TABLE_ENTRIES: usize = const {
-    assert!(size_of::<usize>() == 8);
-    assert!(size_of::<u64>() == 8);
-    PAGE_SIZE / size_of::<usize>()
-};
-
-pub const PAGE_SHIFT: usize = 12;
-pub const LEVEL_3_SHIFT: usize = PAGE_SHIFT;
-pub const LEVEL_2_SHIFT: usize = LEVEL_3_SHIFT + 9;
-pub const LEVEL_1_SHIFT: usize = LEVEL_2_SHIFT + 9;
-pub const LEVEL_0_SHIFT: usize = LEVEL_1_SHIFT + 9;
-
 /// User space region.
 pub const USER_MAP_OFFSET: usize = 0x0000_0000_0000_0000;
 
@@ -32,6 +20,7 @@ pub const LINEAR_MAP_SIZE: usize = 0x0000_1000_0000_0000;
 ///
 /// This region is used for dynamic memory allocation of the kernel heap.
 pub const HEAP_MAP_OFFSET: usize = 0xffff_a000_0000_0000;
+pub const HEAP_MAP_SIZE: usize = 0x0000_1000_0000_0000;
 
 /// I/O peripherals region.
 ///
