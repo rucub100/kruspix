@@ -1,7 +1,8 @@
 #![no_std]
 #![no_main]
 
-use crate::arch::kernel::setup::setup_arch;
+use arch::kernel::setup::setup_arch;
+use mm::init_heap;
 
 mod arch;
 mod drivers;
@@ -19,8 +20,8 @@ mod framebuffer;
 pub extern "C" fn start_kernel() -> ! {
     kprintln!("\n\n\n\n\n\n[kruspix] Starting kruspix kernel...");
     setup_arch();
+    init_heap();
     // TODO: memory management setup
-    // + physical page allocator
     // + kernel heap allocator
     // + update page tables with proper mappings (advanced FDT parsing with heap)
     // TODO: interrupts/exceptions setup
@@ -32,7 +33,7 @@ pub extern "C" fn start_kernel() -> ! {
     // TODO: Enable interrupts and start normal operation
 
     use crate::framebuffer::{init_framebuffer, print};
-        kprintln!("[kruspix] Initializing framebuffer...");
+    kprintln!("[kruspix] Initializing framebuffer...");
     init_framebuffer();
 
     kprintln!("[kruspix] Testing framebuffer print...");

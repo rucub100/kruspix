@@ -8,6 +8,7 @@ use crate::{kprint, kprintln};
 use frame_allocator::{BitMapFrameAllocator, PageFrameAllocator};
 use layout::LINEAR_MAP_OFFSET;
 use memory::calc_available_mem;
+pub use heap_allocator::init_heap;
 
 mod allocator;
 mod frame_allocator;
