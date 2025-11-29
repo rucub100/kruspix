@@ -1,11 +1,13 @@
 use core::iter;
 use core::ptr;
 
+use crate::arch::mm::mmu::PAGE_SIZE;
 use crate::kernel::boot::sync::BootCell;
-use crate::mm::frame_allocator::{BitMapFrameAllocator, PageFrameAllocator};
-use crate::mm::layout::{LINEAR_MAP_OFFSET, PAGE_SIZE};
-use crate::mm::memory::calc_available_mem;
 use crate::{kprint, kprintln};
+
+use frame_allocator::{BitMapFrameAllocator, PageFrameAllocator};
+use layout::LINEAR_MAP_OFFSET;
+use memory::calc_available_mem;
 
 mod allocator;
 mod frame_allocator;

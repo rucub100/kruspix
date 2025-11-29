@@ -3,8 +3,6 @@
 //! This module defines the virtual memory layout offsets used by the kernel.
 //! Each region is 15TiB in size.
 
-pub const PAGE_SIZE: usize = 4096;
-
 /// User space region.
 pub const USER_MAP_OFFSET: usize = 0x0000_0000_0000_0000;
 pub const USER_MAP_SIZE: usize = 0x0001_0000_0000_0000;
