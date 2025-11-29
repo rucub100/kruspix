@@ -270,6 +270,23 @@ impl Descriptor {
     }
 }
 
+#[derive(Eq, PartialEq, Debug)]
+enum VirtualAddressSpace {
+    User,
+    Kernel,
+}
+
+impl From<usize> for VirtualAddressSpace {
+    #[inline(always)]
+    fn from(value: usize) -> Self {
+        if value >= 0xffff_0000_0000_0000 {
+            VirtualAddressSpace::Kernel
+        } else {
+            VirtualAddressSpace::User
+        }
+    }
+}
+
 static KERNEL_TABLE: AtomicPtr<PageTable> = AtomicPtr::new(ptr::null_mut());
 static USER_TABLE: AtomicPtr<PageTable> = AtomicPtr::new(ptr::null_mut());
 
@@ -322,48 +339,51 @@ pub unsafe fn setup_page_tables() {
 }
 
 pub fn map_page(va: usize, pa: usize) {
+    if VirtualAddressSpace::from(va) == VirtualAddressSpace::User {
+        todo!()
+    }
+
     let level_0_index = level_0_index(va);
     let level_1_index = level_1_index(va);
     let level_2_index = level_2_index(va);
     let level_3_index = level_3_index(va);
 
-    match level_0_index {
+    let page_desc = match level_0_index {
         LEVEL_0_LINEAR_INDEX => {
             panic!("Mapping pages in linear region is not supported");
         }
-        LEVEL_0_HEAP_INDEX => unsafe {
-            let level_0_table = &mut *KERNEL_TABLE.load(Ordering::Acquire);
-            let level_1_table = get_or_create_next_leve_table(
-                level_0_table,
-                level_0_index,
-                TranslationLevel::Level0,
-            );
-            let level_2_table = get_or_create_next_leve_table(
-                level_1_table,
-                level_1_index,
-                TranslationLevel::Level1,
-            );
-
-            let page_desc = **(PageDescriptor::new(pa)
+        LEVEL_0_HEAP_INDEX => {
+            **(PageDescriptor::new(pa)
                 .set_shareability(ShareabilityAttribute::InnerShareable)
                 .set_accessed(true)
                 .set_execute_never(true)
                 .set_mem_attr_index(
                     MemoryRegionAttrIndex::NormalWriteBackNonTransientReadWriteAlloc,
-                ));
-            let level_3_table = get_or_create_next_leve_table(
-                level_2_table,
-                level_2_index,
-                TranslationLevel::Level2,
-            );
-            level_3_table.descriptors[level_3_index] = page_desc;
-        },
-        LEVEL_0_IO_INDEX => {
-            todo!()
+                ))
         }
+        LEVEL_0_IO_INDEX => {
+            **(PageDescriptor::new(pa)
+                .set_shareability(ShareabilityAttribute::InnerShareable)
+                .set_accessed(true)
+                .set_execute_never(true)
+                .set_mem_attr_index(MemoryRegionAttrIndex::DeviceNgnRnE))
+        }
+
         _ => {
             panic!("Unsupported virtual address region for mapping: {:#x}", va);
         }
+    };
+
+    unsafe {
+        let level_0_table = &mut *KERNEL_TABLE.load(Ordering::Acquire);
+        let level_1_table =
+            get_or_create_next_leve_table(level_0_table, level_0_index, TranslationLevel::Level0);
+        let level_2_table =
+            get_or_create_next_leve_table(level_1_table, level_1_index, TranslationLevel::Level1);
+
+        let level_3_table =
+            get_or_create_next_leve_table(level_2_table, level_2_index, TranslationLevel::Level2);
+        level_3_table.descriptors[level_3_index] = page_desc;
     }
 }
 

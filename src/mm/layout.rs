@@ -7,9 +7,11 @@ pub const PAGE_SIZE: usize = 4096;
 
 /// User space region.
 pub const USER_MAP_OFFSET: usize = 0x0000_0000_0000_0000;
+pub const USER_MAP_SIZE: usize = 0x0001_0000_0000_0000;
 
 /// Unmapped region.
 pub const UNUSED_MAP_OFFSET: usize = 0xffff_0000_0000_0000;
+pub const UNUSED_MAP_SIZE: usize = 0x0000_8000_0000_0000;
 
 /// Linear mapping region (identity mapping of physical memory).
 pub const LINEAR_MAP_OFFSET: usize = 0xffff_8000_0000_0000;
@@ -26,3 +28,4 @@ pub const HEAP_MAP_SIZE: usize = 0x0000_1000_0000_0000;
 ///
 /// This region is reserved for memory-mapped I/O peripherals.
 pub const IO_PERIPHERALS_MAP_OFFSET: usize = 0xffff_d000_0000_0000;
+pub const IO_PERIPHERALS_MAP_SIZE: usize = 0x0000_1000_0000_0000;
