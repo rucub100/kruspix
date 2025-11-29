@@ -11,12 +11,7 @@ use crate::arch::mm::mmu::setup_page_tables;
 /// and initializes the physical memory.
 #[unsafe(no_mangle)]
 pub fn setup_arch() {
-    let fdt_addr: usize;
-
-    unsafe {
-        core::arch::asm!("mov {}, x0", out(reg) fdt_addr);
-    }
-
+    let fdt_addr = get_fdt_addr();
     let (kernel_addr, kernel_size) = kernel_addr_size();
     let kernel_bss_size = kernel_bss_size();
     kprintln!(
@@ -36,6 +31,17 @@ pub fn setup_arch() {
     unsafe {
         setup_page_tables();
     }
+}
+
+#[inline(always)]
+pub fn get_fdt_addr() -> usize {
+    let fdt_addr: usize;
+
+    unsafe {
+        core::arch::asm!("mov {}, x0", out(reg) fdt_addr);
+    }
+
+    fdt_addr
 }
 
 fn parse_fdt(fdt_addr: usize) -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {

@@ -6,9 +6,9 @@ use super::page_desc::PageDescriptor;
 use super::table_desc::TableDescriptor;
 
 pub enum Descriptor {
-    Table(&'static mut TableDescriptor),
-    Block(&'static mut BlockDescriptor),
-    Page(&'static mut PageDescriptor),
+    Table,
+    Block,
+    Page,
     Invalid,
 }
 
@@ -17,19 +17,15 @@ impl Descriptor {
         match value & 0b11 {
             0b11 => match level {
                 TranslationLevel::Level0 | TranslationLevel::Level1 | TranslationLevel::Level2 => {
-                    Descriptor::Table(unsafe { &mut *(value as *mut TableDescriptor) })
+                    Descriptor::Table
                 }
-                TranslationLevel::Level3 => {
-                    Descriptor::Page(unsafe { &mut *(value as *mut PageDescriptor) })
-                }
+                TranslationLevel::Level3 => Descriptor::Page,
             },
             0b01 => match level {
                 TranslationLevel::Level0 => {
                     panic!("Block descriptor is not valid at level 0");
                 }
-                TranslationLevel::Level1 | TranslationLevel::Level2 => {
-                    Descriptor::Block(unsafe { &mut *(value as *mut BlockDescriptor) })
-                }
+                TranslationLevel::Level1 | TranslationLevel::Level2 => Descriptor::Block,
                 TranslationLevel::Level3 => {
                     panic!("Block descriptor is not valid at level 3");
                 }

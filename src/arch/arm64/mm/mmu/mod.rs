@@ -3,7 +3,6 @@
 //! Page size:          4KiB
 //! Page table levels:  4 (Level 0 to Level 3)
 
-use core::arch::asm;
 use core::ptr;
 use core::sync::atomic::{AtomicPtr, Ordering};
 
@@ -17,6 +16,7 @@ use desc::Descriptor;
 use page_desc::PageDescriptor;
 use page_table::PageTable;
 use table_desc::TableDescriptor;
+use tlb::{invalidate_all, invalidate_by_va_all_asid_inner_shareable};
 
 mod attr;
 mod block_desc;
@@ -24,6 +24,7 @@ mod desc;
 mod page_desc;
 mod page_table;
 mod table_desc;
+mod tlb;
 
 pub const PAGE_SIZE: usize = 4096;
 const PAGE_TABLE_ENTRIES: usize = const {
@@ -78,8 +79,6 @@ pub unsafe fn setup_page_tables() {
 
     // map first 512 GiB of user virtual address space
     let user_table_1 = PageTable::new();
-    let desc_user_table_1 = TableDescriptor::new(user_table_1.phys_addr());
-    user_table_0.set_descriptor(level_0_index(USER_MAP_OFFSET), *desc_user_table_1);
     for (index, desc) in user_table_1.iter_mut().enumerate() {
         *desc = **(BlockDescriptor::new_level_1(index * (1 << LEVEL_1_SHIFT))
             .set_shareability(ShareabilityAttribute::InnerShareable)
@@ -87,6 +86,8 @@ pub unsafe fn setup_page_tables() {
             .set_execute_never(false)
             .set_mem_attr_index(MemoryRegionAttrIndex::DeviceNgnRnE))
     }
+    let desc_user_table_1 = TableDescriptor::new(user_table_1.phys_addr());
+    user_table_0.set_descriptor(level_0_index(USER_MAP_OFFSET), *desc_user_table_1);
 
     let kernel_table_1_linear = PageTable::new();
     let desc_kernel_table_1_linear = TableDescriptor::new(kernel_table_1_linear.phys_addr());
@@ -108,12 +109,7 @@ pub unsafe fn setup_page_tables() {
     }
 
     unsafe {
-        asm!("dsb ishst");
-        asm!("msr ttbr0_el1, {}", in(reg) user_table_0.phys_addr());
-        asm!("msr ttbr1_el1, {}", in(reg) kernel_table_0.phys_addr());
-        asm!("tlbi vmalle1");
-        asm!("dsb ish");
-        asm!("isb");
+        invalidate_all(user_table_0.phys_addr(), kernel_table_0.phys_addr());
     }
 
     KERNEL_TABLE.store(kernel_table_0, Ordering::Release);
@@ -166,6 +162,8 @@ pub fn map_page(va: usize, pa: usize) {
         let level_3_table =
             get_or_create_next_leve_table(level_2_table, level_2_index, TranslationLevel::Level2);
         level_3_table.set_descriptor(level_3_index, page_desc);
+
+        invalidate_by_va_all_asid_inner_shareable(va);
     }
 }
 
@@ -181,9 +179,9 @@ fn get_or_create_next_leve_table(
             let new_table = PageTable::new();
             let new_desc = TableDescriptor::new(new_table.phys_addr());
             table.set_descriptor(index, *new_desc);
-            unsafe { &mut *(table.get_descriptor(index) as *mut TableDescriptor) }
+            table.as_table_descriptor(index)
         }
-        Descriptor::Table(td) => td,
+        Descriptor::Table => table.as_table_descriptor(index),
         _ => panic!("Unexpected descriptor type at level {translation_level:?}"),
     };
 

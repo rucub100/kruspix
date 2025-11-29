@@ -1,6 +1,11 @@
+use core::mem;
 use core::slice::IterMut;
 
 use crate::mm::{alloc_page, virt_to_phys};
+
+use super::block_desc::BlockDescriptor;
+use super::page_desc::PageDescriptor;
+use super::table_desc::TableDescriptor;
 
 use super::PAGE_TABLE_ENTRIES;
 
@@ -35,5 +40,17 @@ impl PageTable {
 
     pub fn set_descriptor(&mut self, index: usize, desc: u64) {
         self.descriptors[index] = desc;
+    }
+
+    pub fn as_table_descriptor(&self, index: usize) -> &TableDescriptor {
+        unsafe { mem::transmute(&self.descriptors[index]) }
+    }
+
+    pub fn as_block_descriptor(&self, index: usize) -> &BlockDescriptor {
+        unsafe { mem::transmute(&self.descriptors[index]) }
+    }
+
+    pub fn as_page_descriptor(&self, index: usize) -> &PageDescriptor {
+        unsafe { mem::transmute(&self.descriptors[index]) }
     }
 }
