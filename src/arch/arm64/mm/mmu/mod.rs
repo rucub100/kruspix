@@ -189,21 +189,17 @@ fn get_or_create_next_leve_table(
 }
 
 const fn level_0_index(va: usize) -> usize {
-    assert!(va.is_multiple_of(1 << LEVEL_0_SHIFT));
     (va >> LEVEL_0_SHIFT) & 0x1FF
 }
 
 const fn level_1_index(va: usize) -> usize {
-    assert!(va.is_multiple_of(1 << LEVEL_1_SHIFT));
     (va >> LEVEL_1_SHIFT) & 0x1FF
 }
 
 const fn level_2_index(va: usize) -> usize {
-    assert!(va.is_multiple_of(1 << LEVEL_2_SHIFT));
     (va >> LEVEL_2_SHIFT) & 0x1FF
 }
 
 const fn level_3_index(va: usize) -> usize {
-    assert!(va.is_multiple_of(1 << LEVEL_3_SHIFT));
     (va >> LEVEL_3_SHIFT) & 0x1FF
 }
