@@ -18,26 +18,34 @@ struct Node {
     next: *mut Node,
 }
 
-#[repr(transparent)]
-struct Heads {
-    heads: [*mut Node; HEAD_COUNT],
+#[repr(C)]
+struct MultiPageNode {
+    size_in_pages: usize,
+    next: *mut MultiPageNode,
 }
 
-impl Heads {
+#[repr(C)]
+struct Heap {
+    heads: [*mut Node; HEAD_COUNT],
+    multi_page_list: *mut MultiPageNode,
+}
+
+impl Heap {
     const fn new() -> Self {
-        Heads {
+        Heap {
             heads: [ptr::null_mut(); HEAD_COUNT],
+            multi_page_list: ptr::null_mut(),
         }
     }
 }
 
-static HEAP_MANAGER: BootCell<Heads> = BootCell::new();
+static HEAP_MANAGER: BootCell<Heap> = BootCell::new();
 static mut HEAP_SIZE: usize = 0;
 
 #[unsafe(no_mangle)]
 pub fn init_heap() {
     kprintln!("[kruspix] Initializing heap...");
-    HEAP_MANAGER.init(Heads::new());
+    HEAP_MANAGER.init(Heap::new());
     HEAP_MANAGER
         .lock()
         .heads
@@ -72,17 +80,35 @@ fn alloc_heap_page() -> usize {
 }
 
 unsafe fn alloc(layout: Layout) -> *mut u8 {
-    let block_size = layout.size().max(layout.align()).max(MIN_BLOCK_SIZE);
-    let head_index = (block_size.next_power_of_two().trailing_zeros()
-        - MIN_BLOCK_SIZE.trailing_zeros()) as usize;
+    let block_size = layout
+        .size()
+        .max(layout.align())
+        .max(MIN_BLOCK_SIZE)
+        .next_power_of_two();
+    let head_index = (block_size.trailing_zeros() - MIN_BLOCK_SIZE.trailing_zeros()) as usize;
 
-    if head_index >= HEAD_COUNT {
-        unimplemented!()
+    if layout.align() > PAGE_SIZE {
+        panic!(
+            "[kruspix] allocation request too large: size = {}, align = {}",
+            layout.size(),
+            layout.align()
+        );
     }
 
-    let heads = HEAP_MANAGER.lock();
-    let mut head_ptr = &mut heads.heads[head_index];
+    let heap = HEAP_MANAGER.lock();
+    if head_index >= HEAD_COUNT {
+        // TODO: check first if we can reuse any freed multi-page blocks
+        let pages = (layout.size() + PAGE_SIZE - 1) / PAGE_SIZE;
+        let va = alloc_heap_page();
+        // allocate additional pages as needed (contiguous)
+        (1..pages).for_each(|_| {
+            alloc_heap_page();
+        });
 
+        return va as *mut u8;
+    }
+
+    let mut head_ptr = &mut heap.heads[head_index];
     if head_ptr.is_null() {
         refill_head(&mut head_ptr, block_size);
 
@@ -106,12 +132,28 @@ unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
         .trailing_zeros()
         - MIN_BLOCK_SIZE.trailing_zeros()) as usize;
 
-    if head_index >= HEAD_COUNT {
-        unimplemented!()
+    if layout.align() > PAGE_SIZE {
+        panic!(
+            "[kruspix] allocation request too large: size = {}, align = {}",
+            layout.size(),
+            layout.align()
+        );
     }
 
-    let heads = HEAP_MANAGER.lock();
-    let head_ptr = &mut heads.heads[head_index];
+    let heap = HEAP_MANAGER.lock();
+
+    if head_index >= HEAD_COUNT {
+        let multi_page_ptr = ptr as *mut MultiPageNode;
+        unsafe {
+            (*multi_page_ptr).size_in_pages = (layout.size() + PAGE_SIZE - 1) / PAGE_SIZE;
+            (*multi_page_ptr).next = heap.multi_page_list;
+            heap.multi_page_list = multi_page_ptr;
+        }
+
+        return;
+    }
+
+    let head_ptr = &mut heap.heads[head_index];
     let node_ptr = ptr as *mut Node;
     unsafe { (*node_ptr).next = *head_ptr };
     *head_ptr = node_ptr;
