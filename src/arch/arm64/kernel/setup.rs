@@ -34,11 +34,15 @@ pub fn setup_arch() {
 }
 
 #[inline(always)]
-pub fn get_fdt_addr() -> usize {
+fn get_fdt_addr() -> usize {
     let fdt_addr: usize;
 
     unsafe {
-        core::arch::asm!("mov {}, x0", out(reg) fdt_addr);
+        core::arch::asm!(
+        "ldr {tmp}, =__fdt_address",
+        "ldr {out}, [{tmp}]",
+        tmp = out(reg) _,
+        out = out(reg) fdt_addr);
     }
 
     fdt_addr

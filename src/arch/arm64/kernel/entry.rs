@@ -215,7 +215,8 @@ extern "C" fn _start_el1() {
         // zero .bss section
         "bl _zero_bss",
         // restore DTB pointer to x0
-        "mov x0, x20",
+        "adr x0, __fdt_address",
+        "str x20, [x0]",
         // call the rust start_kernel function
         "bl start_kernel",
         // infinite Loop (in case start_kernel returns)
@@ -223,6 +224,11 @@ extern "C" fn _start_el1() {
         "wfe",
         "b 0b",
         // DATA --------------------------------------------------------------------------------
+        // variable to hold the DTB address
+        ".balign 8",
+        "__fdt_address:",
+        ".global __fdt_address",
+        ".quad 0",
         // setup early kernel stack (64KB)
         ".balign 16",
         ".space 0x10000",

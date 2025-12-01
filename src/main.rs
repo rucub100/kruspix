@@ -1,15 +1,10 @@
 #![no_std]
 #![no_main]
 
-use arch::kernel::setup::setup_arch;
-use drivers::init_drivers;
-use mm::init_heap;
-
-mod arch;
-mod drivers;
-mod kernel;
-mod mm;
-mod panic_handler;
+use kruspix::init_drivers;
+use kruspix::init_heap;
+use kruspix::kprintln;
+use kruspix::setup_arch;
 
 #[path = "drivers/mailbox/bcm2835_mailbox.rs"]
 mod bcm2835_mailbox;
