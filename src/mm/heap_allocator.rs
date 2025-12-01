@@ -80,13 +80,6 @@ fn alloc_heap_page() -> usize {
 }
 
 unsafe fn alloc(layout: Layout) -> *mut u8 {
-    let block_size = layout
-        .size()
-        .max(layout.align())
-        .max(MIN_BLOCK_SIZE)
-        .next_power_of_two();
-    let head_index = (block_size.trailing_zeros() - MIN_BLOCK_SIZE.trailing_zeros()) as usize;
-
     if layout.align() > PAGE_SIZE {
         panic!(
             "[kruspix] allocation request too large: size = {}, align = {}",
@@ -94,6 +87,13 @@ unsafe fn alloc(layout: Layout) -> *mut u8 {
             layout.align()
         );
     }
+
+    let block_size = layout
+        .size()
+        .max(layout.align())
+        .max(MIN_BLOCK_SIZE)
+        .next_power_of_two();
+    let head_index = (block_size.trailing_zeros() - MIN_BLOCK_SIZE.trailing_zeros()) as usize;
 
     let heap = HEAP_MANAGER.lock();
     if head_index >= HEAD_COUNT {
@@ -124,14 +124,6 @@ unsafe fn alloc(layout: Layout) -> *mut u8 {
 }
 
 unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
-    let head_index = (layout
-        .size()
-        .max(layout.align())
-        .max(MIN_BLOCK_SIZE)
-        .next_power_of_two()
-        .trailing_zeros()
-        - MIN_BLOCK_SIZE.trailing_zeros()) as usize;
-
     if layout.align() > PAGE_SIZE {
         panic!(
             "[kruspix] allocation request too large: size = {}, align = {}",
@@ -139,6 +131,14 @@ unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
             layout.align()
         );
     }
+
+    let head_index = (layout
+        .size()
+        .max(layout.align())
+        .max(MIN_BLOCK_SIZE)
+        .next_power_of_two()
+        .trailing_zeros()
+        - MIN_BLOCK_SIZE.trailing_zeros()) as usize;
 
     let heap = HEAP_MANAGER.lock();
 
