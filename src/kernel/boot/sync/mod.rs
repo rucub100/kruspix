@@ -42,4 +42,13 @@ impl<T> BootCell<T> {
             None => panic!("BootCell not initialized!"),
         }
     }
+    
+    pub fn try_lock(&self) -> Option<&mut T> {
+        let ptr = unsafe { &mut *self.data.get() };
+
+        match ptr {
+            Some(data) => Some(data),
+            None => None,
+        }
+    }
 }

@@ -3,6 +3,8 @@ use core::ptr;
 use core::slice;
 
 use super::fdt_prop::FdtProp;
+use super::node::Node;
+use super::prop::Prop;
 
 pub const FDT_BEGIN_NODE: u32 = const { 0x00000001 };
 pub const FDT_END_NODE: u32 = const { 0x00000002 };
@@ -15,16 +17,9 @@ pub struct StructureBlockEntry {
 }
 
 pub enum StructureBlockEntryKind {
-    BeginNode {
-        name: &'static CStr,
-        props_ptr: *const u32,
-        children_ptr: *const u32,
-    },
+    BeginNode(Node),
     EndNode,
-    Prop {
-        name: &'static CStr,
-        value: &'static [u8],
-    },
+    Prop(Prop),
 }
 
 impl StructureBlockEntry {
@@ -164,11 +159,11 @@ impl Iterator for StructureBlockIter {
                     };
 
                     Some(Ok(StructureBlockEntry {
-                        kind: StructureBlockEntryKind::BeginNode {
+                        kind: StructureBlockEntryKind::BeginNode(Node::new(
                             name,
                             props_ptr,
                             children_ptr,
-                        },
+                        )),
                     }))
                 }
                 FDT_END_NODE => {
@@ -205,10 +200,7 @@ impl Iterator for StructureBlockIter {
 
                     self.prev_token = token;
                     Some(Ok(StructureBlockEntry {
-                        kind: StructureBlockEntryKind::Prop {
-                            name: prop_name,
-                            value: prop_value,
-                        },
+                        kind: StructureBlockEntryKind::Prop(Prop::new(prop_name, prop_value)),
                     }))
                 }
                 FDT_END => {

@@ -4,6 +4,7 @@ use crate::kprintln;
 use crate::mm::init_phys_mem;
 
 use crate::arch::mm::mmu::setup_page_tables;
+use crate::kernel::devicetree::set_fdt;
 
 /// Architecture-specific setup function for ARM64.
 ///
@@ -55,6 +56,8 @@ fn parse_fdt(fdt_addr: usize) -> Result<([(usize, usize); 32], [(usize, usize); 
 
     let memory = fdt.parse_memory()?;
     let reserved_memory = fdt.parse_reserved_memory()?;
+
+    set_fdt(fdt);
 
     Ok((memory, reserved_memory))
 }

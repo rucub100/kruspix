@@ -10,6 +10,10 @@ pub struct Prop {
 }
 
 impl Prop {
+    pub fn new(name: &'static CStr, value: &'static [u8]) -> Self {
+        Prop { name, value }
+    }
+    
     pub fn name(&self) -> &'static CStr {
         self.name
     }

@@ -6,8 +6,6 @@ use super::{BlockAndPageDescriptorAttributes, LEVEL_1_SHIFT, LEVEL_2_SHIFT};
 pub struct BlockDescriptor(u64);
 
 impl BlockDescriptor {
-    const LEVEL_1_ADDR_MASK: u64 = 0x0000_FFFF_FFE0_0000;
-    
     pub const fn new_level_1(output_addr: usize) -> Self {
         assert!(output_addr.is_multiple_of(1 << LEVEL_1_SHIFT));
         Self((output_addr as u64) | 0b01)

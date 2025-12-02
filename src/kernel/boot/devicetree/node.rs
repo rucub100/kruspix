@@ -3,16 +3,16 @@ use core::ffi::CStr;
 
 use super::fdt_structure_block::{StructureBlockEntryKind, StructureBlockIter};
 
+#[derive(Clone)]
 pub struct Node {
     name: &'static CStr,
     kind: NodeKind,
-    // parent_ptr: *const u32,
     props_ptr: *const u32,
     children_ptr: *const u32,
 }
 
 impl Node {
-    fn new(name: &'static CStr, props_ptr: *const u32, children_ptr: *const u32) -> Self {
+    pub fn new(name: &'static CStr, props_ptr: *const u32, children_ptr: *const u32) -> Self {
         let kind = Self::_parse_kind(name);
 
         Node {
@@ -145,13 +145,13 @@ impl Iterator for NodeIter {
             let entry = result.unwrap();
 
             match entry.kind() {
-                StructureBlockEntryKind::BeginNode { name, props_ptr, children_ptr } => {
+                StructureBlockEntryKind::BeginNode(node) => {
                     self.current_depth += 1;
                     if self.current_depth > self.max_depth {
                         continue;
                     }
 
-                    return Some(Node::new(name, *props_ptr, *children_ptr));
+                    return Some(node.clone());
                 }
                 StructureBlockEntryKind::EndNode => {
                     self.current_depth -= 1;

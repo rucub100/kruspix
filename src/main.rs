@@ -1,9 +1,9 @@
 #![no_std]
 #![no_main]
 
-use kruspix::init_drivers;
-use kruspix::init_heap;
+use kruspix::drivers::init_drivers;
 use kruspix::kprintln;
+use kruspix::mm::init_heap;
 use kruspix::setup_arch;
 
 #[path = "drivers/mailbox/bcm2835_mailbox.rs"]
