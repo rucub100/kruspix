@@ -391,10 +391,10 @@ extern "C" fn _enable_early_mmu() {
         "isb",
         // read system control register
         "mrs x0, sctlr_el1",
-        // disable data cache
-        "bic x0, x0, #(1 << 2)",
-        // disable instruction cache
-        "bic x0, x0, #(1 << 12)",
+        // enable data cache
+        "orr x0, x0, #(1 << 2)",
+        // enable instruction cache
+        "orr x0, x0, #(1 << 12)",
         // set the MMU enable bit
         "orr x0, x0, #1",
         // write back to system control register
