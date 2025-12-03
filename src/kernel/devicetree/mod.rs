@@ -1,16 +1,19 @@
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
-use alloc::vec;
 use alloc::vec::Vec;
+use alloc::{format, vec};
+use core::iter;
 use core::ops::Deref;
 use core::ptr::NonNull;
 
-use super::boot::devicetree::{
-    Fdt,
-    fdt_structure_block::StructureBlockEntryKind,
-    prop::{Prop, StandardProp},
+use super::boot::{
+    devicetree::{
+        Fdt,
+        fdt_structure_block::StructureBlockEntryKind,
+        prop::{Prop, StandardProp},
+    },
+    sync::BootCell,
 };
-use super::boot::sync::BootCell;
 
 static FDT: BootCell<Fdt> = BootCell::new();
 
@@ -134,15 +137,15 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn get_name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub fn get_node_name(&self) -> &str {
+    pub fn node_name(&self) -> &str {
         &self.name.split('@').next().unwrap_or(&self.name)
     }
 
-    pub fn get_unit_address(&self) -> Option<&str> {
+    pub fn unit_address(&self) -> Option<&str> {
         let parts: Vec<&str> = self.name.split('@').collect();
         if parts.len() > 1 {
             Some(parts[1])
@@ -155,19 +158,90 @@ impl Node {
         self.parent.is_none()
     }
 
-    pub fn get_path(&self) -> String {
-        unimplemented!();
+    pub fn is_compatible_with(&self, compatible: &str) -> bool {
+        let compatible_prop = self.properties.iter().find(|p| p.name() == "compatible");
+        if let Some(prop) = compatible_prop {
+            return match &prop.value {
+                PropertyValue::Standard(StandardProperty::Compatible(c)) => {
+                    c.iter().any(|s| s == compatible)
+                }
+                _ => false,
+            };
+        }
+
+        false
+    }
+
+    pub fn path(&self) -> String {
+        let mut segments = Vec::with_capacity(16);
+        let mut current = Some(self);
+
+        while let Some(node) = current {
+            if !node.name.is_empty() {
+                segments.push(node.name.as_str());
+            }
+            current = node.parent();
+        }
+
+        if segments.is_empty() {
+            return String::from("/");
+        }
+
+        let path_len = segments.iter().map(|s| s.len() + 1).sum();
+        let mut path = String::with_capacity(path_len);
+
+        segments.iter().rev().for_each(|name| {
+            path.push('/');
+            path.push_str(name);
+        });
+
+        path
+    }
+
+    pub fn properties(&self) -> &Vec<Property> {
+        &self.properties
+    }
+
+    pub fn children(&self) -> &Vec<Box<Node>> {
+        &self.children
+    }
+
+    pub fn parent(&self) -> Option<&Node> {
+        self.parent.map(|p| unsafe { p.as_ref() })
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Node> {
+        let mut stack = Vec::new();
+        stack.push(self);
+
+        iter::from_fn(move || {
+            let node = stack.pop()?;
+            stack.extend(node.children.iter().rev().map(|b| b.as_ref()));
+            Some(node)
+        })
     }
 }
 
+#[derive(Debug)]
 pub enum PropertyValue {
     Standard(StandardProperty),
     Other(PropertyValueType),
 }
 
+#[derive(Debug)]
 pub struct Property {
     name: String,
     value: PropertyValue,
+}
+
+impl Property {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn value(&self) -> &PropertyValue {
+        &self.value
+    }
 }
 
 impl TryFrom<&Prop> for Property {
@@ -177,7 +251,7 @@ impl TryFrom<&Prop> for Property {
         let mut value: PropertyValue =
             PropertyValue::Other(PropertyValueType::PropEncodedArray(prop.value().to_vec()));
 
-        let standard_prop: Result<StandardProp, ()> = prop.value().try_into();
+        let standard_prop: Result<StandardProp, ()> = prop.name().to_bytes().try_into();
         if let Ok(standard_prop) = standard_prop {
             value = match standard_prop {
                 StandardProp::Compatible => PropertyValue::Standard(StandardProperty::Compatible(
@@ -233,6 +307,7 @@ impl TryFrom<&Prop> for Property {
     }
 }
 
+#[derive(Debug)]
 pub enum PropertyValueType {
     Empty,
     U32(u32),
@@ -250,6 +325,7 @@ pub enum StatusValue {
     Fail(String),
 }
 
+#[derive(Debug)]
 pub enum StandardProperty {
     Compatible(Vec<String>),
     Model(String),
