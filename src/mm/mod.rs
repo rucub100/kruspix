@@ -6,9 +6,9 @@ use crate::kernel::boot::sync::BootCell;
 use crate::{kprint, kprintln};
 
 use frame_allocator::{BitMapFrameAllocator, PageFrameAllocator};
+pub use heap_allocator::init_heap;
 use layout::LINEAR_MAP_OFFSET;
 use memory::calc_available_mem;
-pub use heap_allocator::init_heap;
 
 mod allocator;
 mod frame_allocator;
@@ -32,27 +32,27 @@ pub fn init_phys_mem(
     kernel_region: (usize, usize),
     fdt_addr: usize,
 ) {
-    kprintln!("[kruspix] Calculating available physical memory...");
+    kprintln!("Calculating available physical memory...");
     let available_mem = calc_available_mem(mem, &reserved_mem, kernel_region);
 
-    kprintln!("[kruspix] Available physical memory regions:");
+    kprintln!("Available physical memory regions:");
     for (addr, size) in available_mem.iter().filter(|(_, size)| *size > 0) {
-        kprintln!("[kruspix] - address: {:#x}, size: {:#x} bytes", addr, size);
+        kprintln!("- address: {:#x}, size: {:#x} bytes", addr, size);
     }
 
-    kprintln!("[kruspix] Reserved physical memory regions:");
+    kprintln!("Reserved physical memory regions:");
     for (addr, size) in reserved_mem
         .iter()
         .filter(|(_, size)| *size > 0)
         .chain(iter::once(&kernel_region))
     {
-        kprint!("[kruspix] - address: {:#x}, size: {:#x} bytes", addr, size);
+        let suffix = match (addr, size) {
+            (addr, size) if addr == &kernel_region.0 => "(KERNEL)",
+            (addr, size) if addr == &fdt_addr => "(FDT)",
+            _ => "(I/O PERIPHERALS)",
+        };
 
-        match addr {
-            s if s == &kernel_region.0 => kprintln!(" (KERNEL)"),
-            s if s == &fdt_addr => kprintln!(" (FDT)"),
-            _ => kprintln!(" (I/O PERIPHERALS)"),
-        }
+        kprintln!("- address: {:#x}, size: {:#x} bytes {}", addr, size, suffix);
     }
 
     BOOT_PHYS_MEM_MANAGER.init(BootPhysMemManager {

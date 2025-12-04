@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
+use alloc::vec;
 use alloc::vec::Vec;
-use alloc::{format, vec};
 use core::iter;
 use core::ops::Deref;
 use core::ptr::NonNull;

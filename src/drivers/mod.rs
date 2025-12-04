@@ -1,26 +1,19 @@
-use alloc::vec::Vec;
-
-use crate::kernel::boot::sync::BootCell;
 use crate::kernel::devicetree::{Node, PropertyValue, get_devicetree};
 use crate::kprintln;
 
 pub mod mini_uart;
+pub mod platform;
 
-static DRIVERS: BootCell<Vec<(&'static str, fn())>> = BootCell::new();
-
-pub fn init_drivers() {
-    kprintln!("[kruspix] Initializing drivers...");
-    DRIVERS.init(Vec::new());
-
-    register_drivers();
-    init_compatible_drivers();
+pub trait PlatformDriver {
+    fn compatible(&self) -> &str;
+    fn init(&self, node: &Node);
 }
 
-fn register_drivers() {
-    DRIVERS.lock().push(("test", || {}))
-}
+const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[&platform::brcm::bcm2835_aux_uart::DRIVER];
 
-fn init_compatible_drivers() {
+pub fn init_platform_drivers() {
+    kprintln!("Initializing drivers...");
+
     let dt = get_devicetree();
     if let Some(dt) = dt {
         let root = dt.root();
@@ -30,7 +23,7 @@ fn init_compatible_drivers() {
         assert!(root.name().is_empty());
         assert_eq!(root.path(), "/");
 
-        kprintln!("[kruspix] Discover devices from Device Tree:");
+        kprintln!("Discover devices from Device Tree:");
         root.iter().for_each(|node| {
             discover_drivers(&node);
         });
@@ -38,11 +31,11 @@ fn init_compatible_drivers() {
 }
 
 fn discover_drivers(node: &Node) {
-    kprintln!("[kruspix] {}", node.path());
+    kprintln!("{}", node.path());
     for prop in node.properties() {
         match prop.value() {
             PropertyValue::Standard(value) => {
-                kprintln!("[kruspix] - {}: {:?}", prop.name(), prop.value());
+                kprintln!("- {}: {:?}", prop.name(), prop.value());
             }
             _ => (),
         };

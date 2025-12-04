@@ -44,7 +44,7 @@ static mut HEAP_SIZE: usize = 0;
 
 #[unsafe(no_mangle)]
 pub fn init_heap() {
-    kprintln!("[kruspix] Initializing heap...");
+    kprintln!("Initializing heap...");
     HEAP_MANAGER.init(Heap::new());
     HEAP_MANAGER
         .lock()
@@ -82,7 +82,7 @@ fn alloc_heap_page() -> usize {
 unsafe fn alloc(layout: Layout) -> *mut u8 {
     if layout.align() > PAGE_SIZE {
         panic!(
-            "[kruspix] allocation request too large: size = {}, align = {}",
+            "allocation request too large: size = {}, align = {}",
             layout.size(),
             layout.align()
         );
@@ -126,7 +126,7 @@ unsafe fn alloc(layout: Layout) -> *mut u8 {
 unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
     if layout.align() > PAGE_SIZE {
         panic!(
-            "[kruspix] allocation request too large: size = {}, align = {}",
+            "allocation request too large: size = {}, align = {}",
             layout.size(),
             layout.align()
         );

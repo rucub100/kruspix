@@ -1,17 +1,18 @@
 #![no_std]
 #![no_main]
 
-use kruspix::drivers::init_drivers;
-use kruspix::kprintln;
+use kruspix::drivers::init_platform_drivers;
 use kruspix::mm::init_heap;
 use kruspix::setup_arch;
+use kruspix::{kprint, kprintln};
 
 #[unsafe(no_mangle)]
 pub extern "C" fn start_kernel() -> ! {
-    kprintln!("\n\n\n\n\n\n[kruspix] Starting kruspix kernel...");
+    kprint!("\n\n\n\n\n\n");
+    kprintln!("Starting kernel initialization...");
     setup_arch();
     init_heap();
-    init_drivers();
+    init_platform_drivers();
 
     // TODO: memory management setup
     // TODO: interrupts/exceptions setup
@@ -22,7 +23,7 @@ pub extern "C" fn start_kernel() -> ! {
     // TODO: setup root user space process a.k.a. init
     // TODO: Enable interrupts and start normal operation
 
-    kprintln!("[kruspix] Kernel initialization complete. Entering idle loop.");
+    kprintln!("Kernel initialization complete. Entering idle loop.");
     loop {
         unsafe {
             core::arch::asm!("wfe");

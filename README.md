@@ -32,6 +32,7 @@ get a feel for bare metal programming and build your own operating system from t
 - `arch/`: Architecture-specific code (e.g., ARM64) - boot, memory, CPU, interrupts, MMU, SMP, platform SoCs
 - `docs`: Documentation and design notes
 - `drivers/`: Device drivers (e.g., UART, GPIO)
+- `fs/`: File system implementations
 - `init/`: Kernel initialization code
 - `ipc/`: Inter-process communication mechanisms
 - `kernel/`: Core kernel components (e.g., scheduler, locking)

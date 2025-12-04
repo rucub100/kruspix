@@ -42,17 +42,6 @@ impl Write for MiniUart {
 
 static mut GLOBAL_UART: MiniUart = MiniUart;
 
-#[macro_export]
-macro_rules! kprintln {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::kprint!("{}\n", format_args!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! kprint {
-    ($($arg:tt)*) => ($crate::drivers::mini_uart::_print(format_args!($($arg)*)));
-}
-
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;

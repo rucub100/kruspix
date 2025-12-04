@@ -16,19 +16,19 @@ pub fn setup_arch() {
     let (kernel_addr, kernel_size) = kernel_addr_size();
     let kernel_bss_size = kernel_bss_size();
     kprintln!(
-        "[kruspix] Kernel address: {:#x}, size: {:#x} bytes, BSS size: {:#x} bytes",
+        "Kernel address: {:#x}, size: {:#x} bytes, BSS size: {:#x} bytes",
         kernel_addr,
         kernel_size,
         kernel_bss_size
     );
 
-    kprintln!("[kruspix] Parsing Flattened Device Tree (FDT)...");
+    kprintln!("Parsing Flattened Device Tree (FDT)...");
     let (mem, reserved_mem) = parse_fdt(fdt_addr).unwrap();
 
-    kprintln!("[kruspix] Initializing physical memory...");
+    kprintln!("Initializing physical memory...");
     init_phys_mem(mem, reserved_mem, (kernel_addr, kernel_size), fdt_addr);
 
-    kprintln!("[kruspix] Setup page tables...");
+    kprintln!("Setup page tables...");
     unsafe {
         setup_page_tables();
     }
@@ -50,7 +50,7 @@ fn get_fdt_addr() -> usize {
 }
 
 fn parse_fdt(fdt_addr: usize) -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {
-    kprintln!("[kruspix] FDT address: {:#x}", fdt_addr);
+    kprintln!("FDT address: {:#x}", fdt_addr);
 
     let fdt = Fdt::new(fdt_addr)?;
 
