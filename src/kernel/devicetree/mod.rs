@@ -343,3 +343,38 @@ pub enum StandardProperty {
     Name(String),
     DeviceType(String),
 }
+
+impl StandardProperty {
+    pub const COMPATIBLE: &'static str = "compatible";
+    pub const MODEL: &'static str = "model";
+    pub const P_HANDLE: &'static str = "phandle";
+    pub const STATUS: &'static str = "status";
+    pub const ADDRESS_CELLS: &'static str = "#address-cells";
+    pub const SIZE_CELLS: &'static str = "#size-cells";
+    pub const REG: &'static str = "reg";
+    pub const VIRTUAL_REG: &'static str = "virtual-reg";
+    pub const RANGES: &'static str = "ranges";
+    pub const DMA_RANGES: &'static str = "dma-ranges";
+    pub const DMA_COHERENT: &'static str = "dma-coherent";
+    pub const DMA_NONCOHERENT: &'static str = "dma-noncoherent";
+
+    pub fn name(&self) -> &str {
+        match self {
+            StandardProperty::Compatible(_) => Self::COMPATIBLE,
+            StandardProperty::Model(_) => Self::MODEL,
+            StandardProperty::PHandle(_) => Self::P_HANDLE,
+            StandardProperty::Status(_) => Self::STATUS,
+            StandardProperty::AddressCells(_) => Self::ADDRESS_CELLS,
+            StandardProperty::SizeCells(_) => Self::SIZE_CELLS,
+            StandardProperty::Reg(_) => Self::REG,
+            StandardProperty::VirtualReg(_) => Self::VIRTUAL_REG,
+            StandardProperty::Ranges(_) => Self::RANGES,
+            StandardProperty::DmaRanges(_) => Self::DMA_RANGES,
+            StandardProperty::DmaCoherent => Self::DMA_COHERENT,
+            StandardProperty::DmaNoncoherent => Self::DMA_NONCOHERENT,
+            // deprecated properties
+            StandardProperty::Name(_) => "name",
+            StandardProperty::DeviceType(_) => "device_type",
+        }
+    }
+}
