@@ -17,6 +17,11 @@ pub struct Fdt {
     fdt_header: *const FdtHeader,
 }
 
+// SAFETY: Fdt is supposed to be read-only and used early in the boot process,
+// so at that time there is no SMP or other concurrency (e.g., interrupts) to worry about.
+unsafe impl Send for Fdt {}
+unsafe impl Sync for Fdt {}
+
 impl Fdt {
     pub fn new(address: usize) -> Result<Self, ()> {
         let fdt_header = FdtHeader::at_addr(address);

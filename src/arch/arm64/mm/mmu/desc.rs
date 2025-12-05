@@ -1,9 +1,6 @@
 use core::ops::{Deref, DerefMut};
 
 use super::TranslationLevel;
-use super::block_desc::BlockDescriptor;
-use super::page_desc::PageDescriptor;
-use super::table_desc::TableDescriptor;
 
 pub enum Descriptor {
     Table,

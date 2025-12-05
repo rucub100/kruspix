@@ -43,9 +43,7 @@ fn match_driver(node: &Node) {
         if let PropertyValue::Standard(StandardProperty::Compatible(compatible_list)) =
             compatible_prop.value()
         {
-            for compatible in compatible_list {
-                kprintln!("Node '{}' (compatible: '{}')", node.path(), compatible);
-            }
+            kprintln!("Node {} compatible with {:?}", node.path(), compatible_list);
         } else {
             kprintln!("WARNING: 'compatible' property has unexpected format");
             return;

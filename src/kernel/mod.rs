@@ -1,6 +1,5 @@
 use crate::mm::virt_to_phys;
 
-pub mod boot;
 pub mod devicetree;
 pub mod print;
 pub mod sync;

@@ -21,6 +21,12 @@ pub struct BitMapFrameAllocator {
     start: *mut usize,
 }
 
+// SAFETY: The BitMapFrameAllocator manages a global physical memory region.
+// The raw pointer 'start' refers to this global memory, which is accessible 
+// from all cores. The allocator carries no thread-local state. 
+// Therefore, it is safe to transfer ownership of the allocator to another thread.
+unsafe impl Send for BitMapFrameAllocator {}
+
 impl BitMapFrameAllocator {
     /// Create a new `BitMapFrameAllocator`.
     ///

@@ -1,10 +1,11 @@
-use crate::kernel::boot::devicetree::Fdt;
-use crate::kernel::{kernel_addr_size, kernel_bss_size};
+use crate::kernel::{
+    devicetree::{fdt::Fdt, set_fdt},
+    kernel_addr_size, kernel_bss_size,
+};
 use crate::kprintln;
 use crate::mm::init_phys_mem;
 
-use crate::arch::mm::mmu::setup_page_tables;
-use crate::kernel::devicetree::set_fdt;
+use super::super::mm::mmu::setup_page_tables;
 
 /// Architecture-specific setup function for ARM64.
 ///

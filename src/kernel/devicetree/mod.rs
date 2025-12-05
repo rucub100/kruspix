@@ -3,26 +3,29 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::iter;
-use core::ops::Deref;
 use core::ptr::NonNull;
 
-use super::boot::{
-    devicetree::{
-        Fdt,
-        fdt_structure_block::StructureBlockEntryKind,
-        prop::{Prop, StandardProp},
-    },
-    sync::BootCell,
+use crate::kernel::sync::spinlock::SpinLock;
+use fdt::{
+    Fdt,
+    fdt_structure_block::StructureBlockEntryKind,
+    prop::{Prop, StandardProp},
 };
 
-static FDT: BootCell<Fdt> = BootCell::new();
+pub mod fdt;
+
+static FDT: SpinLock<Option<Fdt>> = SpinLock::new(None);
 
 pub fn set_fdt(fdt: Fdt) {
-    FDT.init(fdt);
+    FDT.lock().replace(fdt);
 }
 
 pub fn get_devicetree() -> Option<DeviceTree> {
-    FDT.try_lock()?.deref().try_into().ok()
+    let fdt = FDT.lock();
+    match fdt.as_ref() {
+        None => None,
+        Some(fdt) => fdt.try_into().ok(),
+    }
 }
 
 pub struct DeviceTree {

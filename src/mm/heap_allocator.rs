@@ -2,7 +2,7 @@ use core::alloc::Layout;
 use core::ptr;
 
 use crate::arch::mm::mmu::{PAGE_SIZE, map_page};
-use crate::kernel::boot::sync::BootCell;
+use crate::kernel::sync::spinlock::SpinLock;
 use crate::kprintln;
 
 use super::alloc_frame;
@@ -30,6 +30,12 @@ struct Heap {
     multi_page_list: *mut MultiPageNode,
 }
 
+// SAFETY: The Heap struct owns the free lists. The pointers it holds 
+// (heads, multi_page_list) refer to globally accessible memory (the heap) 
+// which is not thread-local. Therefore, it is safe to move the Heap struct 
+// (or access it via a lock) on any core.
+unsafe impl Send for Heap {}
+
 impl Heap {
     const fn new() -> Self {
         Heap {
@@ -39,13 +45,12 @@ impl Heap {
     }
 }
 
-static HEAP_MANAGER: BootCell<Heap> = BootCell::new();
+static HEAP_MANAGER: SpinLock<Heap> = SpinLock::new(Heap::new());
 static mut HEAP_SIZE: usize = 0;
 
 #[unsafe(no_mangle)]
 pub fn init_heap() {
     kprintln!("Initializing heap...");
-    HEAP_MANAGER.init(Heap::new());
     HEAP_MANAGER
         .lock()
         .heads
@@ -95,7 +100,7 @@ unsafe fn alloc(layout: Layout) -> *mut u8 {
         .next_power_of_two();
     let head_index = (block_size.trailing_zeros() - MIN_BLOCK_SIZE.trailing_zeros()) as usize;
 
-    let heap = HEAP_MANAGER.lock();
+    let mut heap = HEAP_MANAGER.lock();
     if head_index >= HEAD_COUNT {
         // TODO: check first if we can reuse any freed multi-page blocks
         let pages = (layout.size() + PAGE_SIZE - 1) / PAGE_SIZE;
@@ -140,7 +145,7 @@ unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
         .trailing_zeros()
         - MIN_BLOCK_SIZE.trailing_zeros()) as usize;
 
-    let heap = HEAP_MANAGER.lock();
+    let mut heap = HEAP_MANAGER.lock();
 
     if head_index >= HEAD_COUNT {
         let multi_page_ptr = ptr as *mut MultiPageNode;

@@ -2,9 +2,9 @@ use core::iter;
 use core::ptr;
 
 use crate::arch::mm::mmu::PAGE_SIZE;
-use crate::kernel::boot::sync::BootCell;
-use crate::{kprint, kprintln};
+use crate::kprintln;
 
+use crate::kernel::sync::spinlock::SpinLock;
 use frame_allocator::{BitMapFrameAllocator, PageFrameAllocator};
 pub use heap_allocator::init_heap;
 use layout::LINEAR_MAP_OFFSET;
@@ -23,7 +23,7 @@ pub struct BootPhysMemManager {
     pub allocator: BitMapFrameAllocator,
 }
 
-static BOOT_PHYS_MEM_MANAGER: BootCell<BootPhysMemManager> = BootCell::new();
+static BOOT_PHYS_MEM_MANAGER: SpinLock<Option<BootPhysMemManager>> = SpinLock::new(None);
 
 #[unsafe(no_mangle)]
 pub fn init_phys_mem(
@@ -55,7 +55,7 @@ pub fn init_phys_mem(
         kprintln!("- address: {:#x}, size: {:#x} bytes {}", addr, size, suffix);
     }
 
-    BOOT_PHYS_MEM_MANAGER.init(BootPhysMemManager {
+    BOOT_PHYS_MEM_MANAGER.lock().replace(BootPhysMemManager {
         available_mem,
         reserved_mem,
         kernel_region,
@@ -79,12 +79,26 @@ pub const fn phys_to_virt(pa: usize) -> usize {
 
 #[inline]
 pub fn alloc_frame() -> *mut u8 {
-    unsafe { BOOT_PHYS_MEM_MANAGER.lock().allocator.alloc_frame() }
+    unsafe {
+        BOOT_PHYS_MEM_MANAGER
+            .lock()
+            .as_mut()
+            .unwrap()
+            .allocator
+            .alloc_frame()
+    }
 }
 
 #[inline]
 pub fn dealloc_frame(ptr: *mut u8) {
-    unsafe { BOOT_PHYS_MEM_MANAGER.lock().allocator.dealloc_frame(ptr) }
+    unsafe {
+        BOOT_PHYS_MEM_MANAGER
+            .lock()
+            .as_mut()
+            .unwrap()
+            .allocator
+            .dealloc_frame(ptr)
+    }
 }
 
 /// Allocates a physical frame and returns its linearly mapped virtual address.
