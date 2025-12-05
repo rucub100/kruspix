@@ -419,8 +419,8 @@ extern "C" fn _enable_early_mmu() {
         ".endr",
         "LEVEL_1_BLOCK_DESCRIPTOR_1:",
         ".rept 512",
-        // AF = 1; SH = inner sharable; AttrIndx = 1
-        ".quad 0x705",
+        // AF = 1; SH = inner sharable; AttrIndx = 2
+        ".quad 0x709",
         ".endr",
     );
 }
