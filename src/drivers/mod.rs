@@ -1,4 +1,4 @@
-use crate::kernel::devicetree::{Node, PropertyValue, get_devicetree};
+use crate::kernel::devicetree::{Node, PropertyValue, StandardProperty, get_devicetree};
 use crate::kprintln;
 
 pub mod mini_uart;
@@ -14,6 +14,9 @@ const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[&platform::brcm::bcm2835_aux_
 pub fn init_platform_drivers() {
     kprintln!("Initializing drivers...");
 
+    // FIXME: split the logic into two phases:
+    // 1. discover and store devices in the kernel as device objects
+    // 2. initialize drivers for the devices
     let dt = get_devicetree();
     if let Some(dt) = dt {
         let root = dt.root();
@@ -23,21 +26,29 @@ pub fn init_platform_drivers() {
         assert!(root.name().is_empty());
         assert_eq!(root.path(), "/");
 
-        kprintln!("Discover devices from Device Tree:");
+        kprintln!("Match devices from Device Tree:");
         root.iter().for_each(|node| {
-            discover_drivers(&node);
+            match_driver(&node);
         });
     }
 }
 
-fn discover_drivers(node: &Node) {
-    kprintln!("{}", node.path());
-    for prop in node.properties() {
-        match prop.value() {
-            PropertyValue::Standard(value) => {
-                kprintln!("- {}: {:?}", prop.name(), prop.value());
+fn match_driver(node: &Node) {
+    let compatible_prop = node
+        .properties()
+        .iter()
+        .find(|p| p.name() == StandardProperty::COMPATIBLE);
+
+    if let Some(compatible_prop) = compatible_prop {
+        if let PropertyValue::Standard(StandardProperty::Compatible(compatible_list)) =
+            compatible_prop.value()
+        {
+            for compatible in compatible_list {
+                kprintln!("Node '{}' (compatible: '{}')", node.path(), compatible);
             }
-            _ => (),
-        };
+        } else {
+            kprintln!("WARNING: 'compatible' property has unexpected format");
+            return;
+        }
     }
 }

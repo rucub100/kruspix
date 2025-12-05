@@ -42,6 +42,9 @@ impl PlatformDriver for MiniUart {
         // 1. initialize the hardware
         // 2. we may have to map the MMIO region from the device tree node
         // 3. register the UART as a console device (capability)
+        // FIXME: the driver has to be a factory for multiple instances of the device
+        // so a global static variable is a bad idea
+        // 1 driver <-> N devices
         AUX_BASE.store(0, Ordering::Release);
     }
 }
