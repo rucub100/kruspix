@@ -3,6 +3,7 @@ use crate::mm::virt_to_phys;
 pub mod boot;
 pub mod devicetree;
 pub mod print;
+pub mod sync;
 
 pub fn kernel_addr_size() -> (usize, usize) {
     let kernel_start: usize;
