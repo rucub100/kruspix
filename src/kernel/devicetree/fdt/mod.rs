@@ -3,7 +3,7 @@ use fdt_reserve_entry::FdtReserveEntry;
 use fdt_reserve_entry::FdtReserveEntryIter;
 use fdt_structure_block::StructureBlockIter;
 use node::{Node, NodeIter};
-use prop::{PropIter, StandardProp};
+use prop::{Prop, PropIter, StandardProp};
 
 pub mod fdt_header;
 pub mod fdt_prop;
@@ -120,7 +120,56 @@ impl Fdt {
         NodeIter::new(node.children_ptr(), strings_block_address, 1)
     }
 
-    pub fn address_and_size_cells(&self, node: &Node) -> Result<(u32, u32), ()> {
+    pub fn get_node_by_alias(&self, alias: &str) -> Option<Node> {
+        todo!()
+    }
+
+    pub fn get_node_by_path(&self, path: &str) -> Option<Node> {
+        todo!()
+    }
+
+    pub fn parse_chosen(&self) -> (Option<&str>, Option<&str>, Option<&str>) {
+        let mut bootargs: Option<&str> = None;
+        let mut stdout_path: Option<&str> = None;
+        let mut stdin_path: Option<&str> = None;
+
+        fn extract_and_set_path(prop: &Prop, dest: &mut Option<&str>) {
+            if let Some(path) = prop.value_as_string().ok()
+                && let Some(path) = path.to_str().ok()
+            {
+                let path = match path.split_once(':') {
+                    Some((p, _)) => p,
+                    None => path,
+                };
+
+                dest.replace(path);
+            }
+        }
+
+        if let Some(chosen_node) = self.chosen_node() {
+            for prop in self.prop_iter(&chosen_node) {
+                match prop.name().to_bytes() {
+                    b"bootargs" => {
+                        if let Some(value) = prop.value_as_string().ok()
+                            && let Some(value) = value.to_str().ok()
+                        {
+                            bootargs.replace(value);
+                        }
+                    }
+                    // ends_with to support legacy names
+                    x if x.ends_with(b"stdout-path") => {
+                        extract_and_set_path(&prop, &mut stdout_path)
+                    }
+                    b"stdin-path" => extract_and_set_path(&prop, &mut stdin_path),
+                    _ => continue,
+                }
+            }
+        }
+
+        (bootargs, stdout_path, stdin_path)
+    }
+
+    pub fn parse_address_and_size_cells(&self, node: &Node) -> Result<(u32, u32), ()> {
         let mut address_cells: Option<u32> = None;
         let mut size_cells: Option<u32> = None;
 
@@ -162,7 +211,7 @@ impl Fdt {
 
     pub fn parse_memory(&self) -> Result<[(usize, usize); 32], ()> {
         let root = self.root_node()?;
-        let (root_address_cells, root_size_cells) = self.address_and_size_cells(&root)?;
+        let (root_address_cells, root_size_cells) = self.parse_address_and_size_cells(&root)?;
 
         if root_address_cells == 0 || root_size_cells == 0 {
             return Err(());
@@ -219,8 +268,9 @@ impl Fdt {
         let reserved_memory_node = self.reserved_memory_node();
         if let Some(reserved_memory_node) = reserved_memory_node {
             let root = self.root_node()?;
-            let (root_address_cells, root_size_cells) = self.address_and_size_cells(&root)?;
-            let (address_cells, size_cells) = self.address_and_size_cells(&reserved_memory_node)?;
+            let (root_address_cells, root_size_cells) = self.parse_address_and_size_cells(&root)?;
+            let (address_cells, size_cells) =
+                self.parse_address_and_size_cells(&reserved_memory_node)?;
 
             // address translation not supported
             if address_cells != root_address_cells || size_cells != root_size_cells {

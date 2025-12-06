@@ -18,19 +18,17 @@ pub fn init_platform_drivers() {
     // 1. discover and store devices in the kernel as device objects
     // 2. initialize drivers for the devices
     let dt = get_devicetree();
-    if let Some(dt) = dt {
-        let root = dt.root();
-        assert!(dt.version() >= 17);
-        assert_eq!(dt.last_compatible_version(), 16);
-        assert!(root.is_root());
-        assert!(root.name().is_empty());
-        assert_eq!(root.path(), "/");
+    let root = dt.root();
+    assert!(dt.version() >= 17);
+    assert_eq!(dt.last_compatible_version(), 16);
+    assert!(root.is_root());
+    assert!(root.name().is_empty());
+    assert_eq!(root.path(), "/");
 
-        kprintln!("Match devices from Device Tree:");
-        root.iter().for_each(|node| {
-            match_driver(&node);
-        });
-    }
+    kprintln!("Match devices from Device Tree:");
+    root.iter().for_each(|node| {
+        match_driver(&node);
+    });
 }
 
 fn match_driver(node: &Node) {

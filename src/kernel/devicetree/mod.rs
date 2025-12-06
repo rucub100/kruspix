@@ -20,11 +20,11 @@ pub fn set_fdt(fdt: Fdt) {
     FDT.lock().replace(fdt);
 }
 
-pub fn get_devicetree() -> Option<DeviceTree> {
+pub fn get_devicetree() -> DeviceTree {
     let fdt = FDT.lock();
     match fdt.as_ref() {
-        None => None,
-        Some(fdt) => fdt.try_into().ok(),
+        None => panic!("FDT not set"),
+        Some(fdt) => fdt.try_into().expect("Cannot convert FDT to DeviceTree"),
     }
 }
 
