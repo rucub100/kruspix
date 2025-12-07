@@ -13,7 +13,7 @@ pub trait PlatformDriver {
     fn init(&self, node: &Node);
 
     /// Optional static initialization method, maybe called during early boot.
-    fn static_init(&self, fdt: &Fdt, node: &FdtNode) {
+    fn static_init(&self, fdt: &Fdt, path: &str) {
         // default implementation: do nothing
         // can be overridden by specific drivers to support static initialization
         // kernel may not call this method at all

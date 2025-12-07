@@ -1,18 +1,19 @@
+use alloc::vec::Vec;
 use core::cmp::PartialEq;
 use core::ffi::CStr;
 
 use super::fdt_structure_block::{StructureBlockEntryKind, StructureBlockIter};
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Node {
-    name: &'static CStr,
+    name: &'static str,
     kind: NodeKind,
     props_ptr: *const u32,
     children_ptr: *const u32,
 }
 
 impl Node {
-    pub fn new(name: &'static CStr, props_ptr: *const u32, children_ptr: *const u32) -> Self {
+    pub fn new(name: &'static str, props_ptr: *const u32, children_ptr: *const u32) -> Self {
         let kind = Self::_parse_kind(name);
 
         Node {
@@ -23,8 +24,16 @@ impl Node {
         }
     }
 
-    pub fn name(&self) -> &'static CStr {
+    pub fn name(&self) -> &'static str {
         self.name
+    }
+
+    pub fn node_name(&self) -> &str {
+        &self.name.split('@').next().unwrap_or(&self.name)
+    }
+
+    pub fn unit_address(&self) -> Option<&str> {
+        self.name.split('@').skip(1).next()
     }
 
     pub fn kind(&self) -> NodeKind {
@@ -66,26 +75,26 @@ impl Node {
         self.children_ptr
     }
 
-    fn _parse_kind(name: &'static CStr) -> NodeKind {
-        match name.to_bytes() {
-            b"" => NodeKind::Root,
-            b"aliases" => NodeKind::Aliases,
-            mem if mem.starts_with(b"memory") => {
-                if mem.len() == 6 || mem[6] == b'@' {
+    fn _parse_kind(name: &'static str) -> NodeKind {
+        match name {
+            s if s.is_empty() => NodeKind::Root,
+            "aliases" => NodeKind::Aliases,
+            mem if mem.starts_with("memory") => {
+                if mem.len() == 6 || mem.as_bytes()[6] == b'@' {
                     NodeKind::Memory
                 } else {
                     NodeKind::Generic
                 }
             }
-            rsv_mem if rsv_mem.starts_with(b"reserved-memory") => {
-                if rsv_mem.len() == 15 || rsv_mem[15] == b'@' {
+            rsv_mem if rsv_mem.starts_with("reserved-memory") => {
+                if rsv_mem.len() == 15 || rsv_mem.as_bytes()[15] == b'@' {
                     NodeKind::ReservedMemory
                 } else {
                     NodeKind::Generic
                 }
             }
-            b"chosen" => NodeKind::Chosen,
-            b"cpus" => NodeKind::Cpus,
+            "chosen" => NodeKind::Chosen,
+            "cpus" => NodeKind::Cpus,
             _ => NodeKind::Generic,
         }
     }

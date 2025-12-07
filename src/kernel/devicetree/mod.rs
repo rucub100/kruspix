@@ -88,7 +88,7 @@ impl TryFrom<&Fdt> for DeviceTree {
 
             match entry.kind() {
                 StructureBlockEntryKind::BeginNode(node) => {
-                    let name = node.name().to_str().map_err(|_| ())?.to_string();
+                    let name = node.name().to_string();
 
                     let parent = nodes
                         .last()
@@ -254,7 +254,7 @@ impl TryFrom<&Prop> for Property {
         let mut value: PropertyValue =
             PropertyValue::Other(PropertyValueType::PropEncodedArray(prop.value().to_vec()));
 
-        let standard_prop: Result<StandardProp, ()> = prop.name().to_bytes().try_into();
+        let standard_prop: Result<StandardProp, ()> = prop.name().try_into();
         if let Ok(standard_prop) = standard_prop {
             value = match standard_prop {
                 StandardProp::Compatible => PropertyValue::Standard(StandardProperty::Compatible(
@@ -267,19 +267,13 @@ impl TryFrom<&Prop> for Property {
                         .collect(),
                 )),
                 StandardProp::Model => PropertyValue::Standard(StandardProperty::Model(
-                    prop.value_as_string()?
-                        .to_str()
-                        .map_err(|_| ())?
-                        .to_string(),
+                    prop.value_as_string()?.to_string(),
                 )),
                 StandardProp::PHandle => {
                     PropertyValue::Standard(StandardProperty::PHandle(prop.value_as_u32()?))
                 }
                 StandardProp::Status => PropertyValue::Standard(StandardProperty::Status(
-                    prop.value_as_string()?
-                        .to_str()
-                        .map_err(|_| ())?
-                        .to_string(),
+                    prop.value_as_string()?.to_string(),
                 )),
                 StandardProp::AddressCells => {
                     PropertyValue::Standard(StandardProperty::AddressCells(prop.value_as_u32()?))
@@ -304,7 +298,7 @@ impl TryFrom<&Prop> for Property {
         }
 
         Ok(Self {
-            name: prop.name().to_str().map_err(|_| ())?.to_string(),
+            name: prop.name().to_string(),
             value,
         })
     }

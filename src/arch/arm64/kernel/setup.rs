@@ -57,19 +57,18 @@ fn parse_parameters(fdt: &Fdt) {
 
     if let Some(stdout_path) = stdout_path
         && !stdout_path.is_empty()
-        && let Some(node) = if stdout_path.contains('/') {
-            fdt.get_node_by_path(stdout_path)
-        } else {
-            fdt.get_node_by_alias(stdout_path)
-        }
-        && let Some(compatible) = fdt.prop_iter(&node).find(|prop| {
-            prop.name()
-                .to_bytes()
-                .try_into()
-                .is_ok_and(|prop: StandardProp| prop == StandardProp::Compatible)
-        })
+        && let Some(node) = fdt.get_node_by_path(stdout_path)
+        && let Some(compatible_list) = fdt.parse_standard_prop(&node, StandardProp::Compatible)
     {
-        for compatible in compatible
+        // validate 'status' property
+        if let Some(status) = fdt.parse_standard_prop(&node, StandardProp::Status)
+            && let Some(value) = status.value_as_string().ok()
+            && value != "okay"
+        {
+            return;
+        }
+
+        for compatible in compatible_list
             .value_as_string_list_iter()
             .filter_map(|s| s.ok())
             .filter_map(|s| s.to_str().ok())
@@ -79,7 +78,7 @@ fn parse_parameters(fdt: &Fdt) {
                 .find(|d| d.compatible() == compatible);
 
             if let Some(driver) = stdout_compatible_driver {
-                driver.static_init(fdt, &node);
+                driver.static_init(fdt, stdout_path);
                 break;
             }
         }

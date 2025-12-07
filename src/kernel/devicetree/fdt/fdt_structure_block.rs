@@ -119,7 +119,7 @@ impl Iterator for StructureBlockIter {
             match token {
                 FDT_BEGIN_NODE => {
                     let name_ptr = self.token_be_ptr.add(1) as *const c_char;
-                    let name = CStr::from_ptr(name_ptr);
+                    let name = CStr::from_ptr(name_ptr).to_str().ok()?;
                     let mut name_parts_count = 1;
 
                     loop {
@@ -195,7 +195,7 @@ impl Iterator for StructureBlockIter {
 
                     let prop_name_addr = self.strings_block_addr + prop.name_offset() as usize;
                     let prop_name_ptr = prop_name_addr as *const c_char;
-                    let prop_name = CStr::from_ptr(prop_name_ptr);
+                    let prop_name = CStr::from_ptr(prop_name_ptr).to_str().unwrap();
                     let prop_value = slice::from_raw_parts(prop_value_ptr, prop_value_len);
 
                     self.prev_token = token;

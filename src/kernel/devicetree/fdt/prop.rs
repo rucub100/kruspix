@@ -1,20 +1,20 @@
-use core::ffi::{CStr, c_char};
+use core::ffi::{c_char, CStr};
 use core::slice;
 
 use super::fdt_prop::FdtProp;
 use super::fdt_structure_block::{FDT_NOP, FDT_PROP};
 
 pub struct Prop {
-    name: &'static CStr,
+    name: &'static str,
     value: &'static [u8],
 }
 
 impl Prop {
-    pub fn new(name: &'static CStr, value: &'static [u8]) -> Self {
+    pub fn new(name: &'static str, value: &'static [u8]) -> Self {
         Prop { name, value }
     }
     
-    pub fn name(&self) -> &'static CStr {
+    pub fn name(&self) -> &'static str {
         self.name
     }
 
@@ -42,12 +42,12 @@ impl Prop {
         unsafe { Ok(u64::from_be(*value_ptr)) }
     }
 
-    pub fn value_as_string(&self) -> Result<&'static CStr, ()> {
+    pub fn value_as_string(&self) -> Result<&'static str, ()> {
         if self.value.is_empty() {
             return Err(());
         }
 
-        CStr::from_bytes_with_nul(self.value).map_err(|_| ())
+        CStr::from_bytes_with_nul(self.value).map_err(|_| ())?.to_str().map_err(|_| ())
     }
 
     pub fn value_as_phandle(&self) -> Result<u32, ()> {
@@ -86,6 +86,8 @@ impl Prop {
     }
     
     pub fn value_as_prop_encoded_array_cells_pair_iter(&self, size_1: u32, size_2: u32) -> impl Iterator<Item = (usize, usize)> {
+        // FIXME: node may specify zero size cells which means that the corresponding value is omitted
+        // so we have to handle that case here (see devicetree spec v0.4, 2.3.6 reg)
         assert!(size_1 > 0);
         assert!(size_2 > 0);
 
@@ -240,7 +242,7 @@ impl Iterator for PropIter {
 
             let prop_name_addr = self.strings_block_addr + prop.name_offset() as usize;
             let prop_name_ptr = prop_name_addr as *const c_char;
-            let name = CStr::from_ptr(prop_name_ptr);
+            let name = CStr::from_ptr(prop_name_ptr).to_str().unwrap();
             let value = slice::from_raw_parts(prop_value_ptr, prop_value_len);
 
             Some(Prop { name, value })
@@ -274,43 +276,43 @@ pub enum StandardProp {
     DmaNoncoherent,
 }
 
-impl TryFrom<&[u8]> for StandardProp {
+impl TryFrom<&str> for StandardProp {
     type Error = ();
 
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            b"compatible" => Ok(StandardProp::Compatible),
-            b"model" => Ok(StandardProp::Model),
-            b"phandle" => Ok(StandardProp::PHandle),
-            b"status" => Ok(StandardProp::Status),
-            b"#address-cells" => Ok(StandardProp::AddressCells),
-            b"#size-cells" => Ok(StandardProp::SizeCells),
-            b"reg" => Ok(StandardProp::Reg),
-            b"virtual-reg" => Ok(StandardProp::VirtualReg),
-            b"ranges" => Ok(StandardProp::Ranges),
-            b"dma-ranges" => Ok(StandardProp::DmaRanges),
-            b"dma-coherent" => Ok(StandardProp::DmaCoherent),
-            b"dma-noncoherent" => Ok(StandardProp::DmaNoncoherent),
+            "compatible" => Ok(StandardProp::Compatible),
+            "model" => Ok(StandardProp::Model),
+            "phandle" => Ok(StandardProp::PHandle),
+            "status" => Ok(StandardProp::Status),
+            "#address-cells" => Ok(StandardProp::AddressCells),
+            "#size-cells" => Ok(StandardProp::SizeCells),
+            "reg" => Ok(StandardProp::Reg),
+            "virtual-reg" => Ok(StandardProp::VirtualReg),
+            "ranges" => Ok(StandardProp::Ranges),
+            "dma-ranges" => Ok(StandardProp::DmaRanges),
+            "dma-coherent" => Ok(StandardProp::DmaCoherent),
+            "dma-noncoherent" => Ok(StandardProp::DmaNoncoherent),
             _ => Err(()),
         }
     }
 }
 
-impl From<StandardProp> for &[u8] {
+impl From<StandardProp> for &str {
     fn from(value: StandardProp) -> Self {
         match value {
-            StandardProp::Compatible => b"compatible",
-            StandardProp::Model => b"model",
-            StandardProp::PHandle => b"phandle",
-            StandardProp::Status => b"status",
-            StandardProp::AddressCells => b"#address-cells",
-            StandardProp::SizeCells => b"#size-cells",
-            StandardProp::Reg => b"reg",
-            StandardProp::VirtualReg => b"virtual-reg",
-            StandardProp::Ranges => b"ranges",
-            StandardProp::DmaRanges => b"dma-ranges",
-            StandardProp::DmaCoherent => b"dma-coherent",
-            StandardProp::DmaNoncoherent => b"dma-noncoherent",
+            StandardProp::Compatible => "compatible",
+            StandardProp::Model => "model",
+            StandardProp::PHandle => "phandle",
+            StandardProp::Status => "status",
+            StandardProp::AddressCells => "#address-cells",
+            StandardProp::SizeCells => "#size-cells",
+            StandardProp::Reg => "reg",
+            StandardProp::VirtualReg => "virtual-reg",
+            StandardProp::Ranges => "ranges",
+            StandardProp::DmaRanges => "dma-ranges",
+            StandardProp::DmaCoherent => "dma-coherent",
+            StandardProp::DmaNoncoherent => "dma-noncoherent",
         }
     }
 }

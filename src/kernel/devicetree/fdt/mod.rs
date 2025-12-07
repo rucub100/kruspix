@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use fdt_header::{FdtHeader, FdtHeaderPtrExt};
 use fdt_reserve_entry::FdtReserveEntry;
 use fdt_reserve_entry::FdtReserveEntryIter;
@@ -12,6 +13,9 @@ pub mod fdt_structure_block;
 
 pub mod node;
 pub mod prop;
+
+const PATH_SEPARATOR: char = '/';
+const MAX_PATH_DEPTH: usize = 64;
 
 pub struct Fdt {
     fdt_header: *const FdtHeader,
@@ -89,6 +93,20 @@ impl Fdt {
         self.node_iter().find(|node| node.is_aliases())
     }
 
+    pub fn alias_path<'a>(&'a self, alias: &'a str) -> Option<&'a str> {
+        if alias.is_empty() {
+            return None;
+        }
+
+        if alias.contains(PATH_SEPARATOR) {
+            return Some(alias);
+        }
+
+        self.prop_iter(&self.aliases_node()?)
+            .find(|prop| prop.name() == alias)
+            .and_then(|prop| prop.value_as_string().ok())
+    }
+
     pub fn memory_node_iter(&self) -> impl Iterator<Item = Node> {
         self.node_iter().filter(|node| node.is_memory())
     }
@@ -120,21 +138,45 @@ impl Fdt {
         NodeIter::new(node.children_ptr(), strings_block_address, 1)
     }
 
-    pub fn get_node_by_alias(&self, alias: &str) -> Option<Node> {
-        self.prop_iter(&self.aliases_node()?)
-            .find(|prop| prop.name().to_str().ok() == Some(alias))
-            .and_then(|prop| {
-                let path = prop.value_as_string().ok()?.to_str().ok()?;
-                self.get_node_by_path(path)
-            })
+    pub fn get_nodes_path(&self, path: &str) -> Option<[Option<Node>; MAX_PATH_DEPTH]> {
+        let path = self.alias_path(path)?;
+        let mut result = [None; MAX_PATH_DEPTH];
+        let mut index: usize = 0;
+
+        let mut current_node = self.root_node().unwrap();
+        result[index] = Some(current_node.clone());
+        index += 1;
+
+        for segment in path.split(PATH_SEPARATOR).filter(|s| !s.is_empty()) {
+            let next_node = self
+                .child_iter(&current_node)
+                .find(|node| node.name() == segment);
+
+            if let Some(next_node) = next_node {
+                current_node = next_node;
+                if index < MAX_PATH_DEPTH {
+                    result[index] = Some(current_node.clone());
+                    index += 1;
+                } else {
+                    // path depth exceeds MAX_PATH_DEPTH, resolution fails
+                    return None;
+                }
+            } else {
+                // if we cannot resolve a segment, the whole path resolution fails
+                return None;
+            }
+        }
+
+        Some(result)
     }
 
     pub fn get_node_by_path(&self, path: &str) -> Option<Node> {
+        let path = self.alias_path(path)?;
         let mut current_node = self.root_node().ok()?;
-        for segment in path.split('/').filter(|s| !s.is_empty()) {
+        for segment in path.split(PATH_SEPARATOR).filter(|s| !s.is_empty()) {
             let next_node = self
                 .child_iter(&current_node)
-                .find(|node| node.name().to_str().ok() == Some(segment));
+                .find(|node| node.name() == segment);
             if let Some(next_node) = next_node {
                 current_node = next_node;
             } else {
@@ -145,15 +187,21 @@ impl Fdt {
         Some(current_node)
     }
 
+    pub fn parse_standard_prop(&self, node: &Node, standard_prop: StandardProp) -> Option<Prop> {
+        self.prop_iter(&node).find(|prop| {
+            prop.name()
+                .try_into()
+                .is_ok_and(|x: StandardProp| x == standard_prop)
+        })
+    }
+
     pub fn parse_chosen(&self) -> (Option<&str>, Option<&str>, Option<&str>) {
         let mut bootargs: Option<&str> = None;
         let mut stdout_path: Option<&str> = None;
         let mut stdin_path: Option<&str> = None;
 
         fn extract_and_set_path(prop: &Prop, dest: &mut Option<&str>) {
-            if let Some(path) = prop.value_as_string().ok()
-                && let Some(path) = path.to_str().ok()
-            {
+            if let Some(path) = prop.value_as_string().ok() {
                 let path = match path.split_once(':') {
                     Some((p, _)) => p,
                     None => path,
@@ -165,19 +213,17 @@ impl Fdt {
 
         if let Some(chosen_node) = self.chosen_node() {
             for prop in self.prop_iter(&chosen_node) {
-                match prop.name().to_bytes() {
-                    b"bootargs" => {
-                        if let Some(value) = prop.value_as_string().ok()
-                            && let Some(value) = value.to_str().ok()
-                        {
+                match prop.name() {
+                    "bootargs" => {
+                        if let Some(value) = prop.value_as_string().ok() {
                             bootargs.replace(value);
                         }
                     }
                     // ends_with to support legacy names
-                    x if x.ends_with(b"stdout-path") => {
+                    x if x.ends_with("stdout-path") => {
                         extract_and_set_path(&prop, &mut stdout_path)
                     }
-                    b"stdin-path" => extract_and_set_path(&prop, &mut stdin_path),
+                    "stdin-path" => extract_and_set_path(&prop, &mut stdin_path),
                     _ => continue,
                 }
             }
@@ -192,7 +238,7 @@ impl Fdt {
 
         for prop in self.prop_iter(&node) {
             let name = prop.name();
-            let standard_prop = name.to_bytes().try_into();
+            let standard_prop = name.try_into();
 
             // consider only standard properties
             if standard_prop.is_err() {
@@ -241,7 +287,7 @@ impl Fdt {
             .flat_map(|node| self.prop_iter(&node))
         {
             let name = prop.name();
-            let standard_prop = name.to_bytes().try_into();
+            let standard_prop = name.try_into();
 
             if standard_prop.is_err() {
                 continue;
@@ -299,7 +345,7 @@ impl Fdt {
                 }
 
                 let name = prop.name();
-                let standard_prop = name.to_bytes().try_into();
+                let standard_prop = name.try_into();
 
                 if standard_prop.is_err() {
                     continue;
@@ -324,9 +370,8 @@ impl Fdt {
                     continue;
                 }
 
-                let name = child_prop.name().to_bytes();
-                match name {
-                    val if val == Into::<&[u8]>::into(StandardProp::Reg) => {
+                match child_prop.name() {
+                    val if val == Into::<&str>::into(StandardProp::Reg) => {
                         for (address, size) in child_prop
                             .value_as_prop_encoded_array_cells_pair_iter(address_cells, size_cells)
                         {
@@ -338,7 +383,7 @@ impl Fdt {
                             index += 1;
                         }
                     }
-                    b"size" => {
+                    "size" => {
                         for size in child_prop.value_as_prop_encoded_array_cells_iter(size_cells) {
                             size_dynamic += size;
                         }
