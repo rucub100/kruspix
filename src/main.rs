@@ -1,16 +1,18 @@
 #![no_std]
 #![no_main]
 
+use kruspix::arch::{kernel::setup::setup_arch, mm::mmu::setup_page_tables};
 use kruspix::drivers::init_platform_drivers;
 use kruspix::mm::init_heap;
-use kruspix::setup_arch;
 use kruspix::{kprint, kprintln};
 
 #[unsafe(no_mangle)]
 pub extern "C" fn start_kernel() -> ! {
     kprint!("\n\n\n\n\n\n");
     kprintln!("Starting kernel initialization...");
+
     setup_arch();
+    setup_page_tables();
     init_heap();
     init_platform_drivers();
 

@@ -1,3 +1,4 @@
+use crate::kernel::devicetree::fdt::{Fdt, node::Node as FdtNode};
 use crate::kernel::devicetree::{Node, PropertyValue, StandardProperty, get_devicetree};
 use crate::kprintln;
 
@@ -5,11 +6,21 @@ pub mod mini_uart;
 pub mod platform;
 
 pub trait PlatformDriver {
+    /// Returns the compatible string that this driver supports.
     fn compatible(&self) -> &str;
+
+    /// Driver's factory method to initialize a device instance from a device tree node.
     fn init(&self, node: &Node);
+
+    /// Optional static initialization method, maybe called during early boot.
+    fn static_init(&self, fdt: &Fdt, node: &FdtNode) {
+        // default implementation: do nothing
+        // can be overridden by specific drivers to support static initialization
+        // kernel may not call this method at all
+    }
 }
 
-const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[&platform::brcm::bcm2835_aux_uart::DRIVER];
+pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[&platform::brcm::bcm2835_aux_uart::DRIVER];
 
 pub fn init_platform_drivers() {
     kprintln!("Initializing drivers...");

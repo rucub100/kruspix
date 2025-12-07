@@ -121,11 +121,28 @@ impl Fdt {
     }
 
     pub fn get_node_by_alias(&self, alias: &str) -> Option<Node> {
-        todo!()
+        self.prop_iter(&self.aliases_node()?)
+            .find(|prop| prop.name().to_str().ok() == Some(alias))
+            .and_then(|prop| {
+                let path = prop.value_as_string().ok()?.to_str().ok()?;
+                self.get_node_by_path(path)
+            })
     }
 
     pub fn get_node_by_path(&self, path: &str) -> Option<Node> {
-        todo!()
+        let mut current_node = self.root_node().ok()?;
+        for segment in path.split('/').filter(|s| !s.is_empty()) {
+            let next_node = self
+                .child_iter(&current_node)
+                .find(|node| node.name().to_str().ok() == Some(segment));
+            if let Some(next_node) = next_node {
+                current_node = next_node;
+            } else {
+                return None;
+            }
+        }
+
+        Some(current_node)
     }
 
     pub fn parse_chosen(&self) -> (Option<&str>, Option<&str>, Option<&str>) {

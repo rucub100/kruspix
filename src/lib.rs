@@ -7,4 +7,3 @@ pub mod kernel;
 pub mod mm;
 pub mod panic_handler;
 
-pub use arch::kernel::setup::setup_arch;

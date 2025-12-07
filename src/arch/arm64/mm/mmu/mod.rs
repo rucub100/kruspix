@@ -17,6 +17,7 @@ use page_desc::PageDescriptor;
 use page_table::PageTable;
 use table_desc::TableDescriptor;
 use tlb::{invalidate_all, invalidate_by_va_all_asid_inner_shareable};
+use crate::kprintln;
 
 mod attr;
 mod block_desc;
@@ -73,7 +74,9 @@ enum TranslationLevel {
 static KERNEL_TABLE: AtomicPtr<PageTable> = AtomicPtr::new(ptr::null_mut());
 static USER_TABLE: AtomicPtr<PageTable> = AtomicPtr::new(ptr::null_mut());
 
-pub unsafe fn setup_page_tables() {
+pub fn setup_page_tables() {
+    kprintln!("Setup page tables...");
+    
     let user_table_0 = PageTable::new();
     let kernel_table_0 = PageTable::new();
 

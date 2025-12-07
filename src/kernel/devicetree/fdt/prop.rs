@@ -258,6 +258,7 @@ pub enum PropValue {
     StringList,
 }
 
+#[derive(PartialEq)]
 pub enum StandardProp {
     Compatible,
     Model,
