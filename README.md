@@ -224,6 +224,7 @@ openocd -f interface/ftdi/um232h.cfg -f board/rpi3.cfg
 - [Linux Source](https://github.com/torvalds/linux)
 - [The Linux Kernel documentation](https://docs.kernel.org/)
 - [Device Tree Specification](https://www.devicetree.org/specifications/)
+- [Device Bindings](https://github.com/devicetree-org/devicetree-source/tree/master/Bindings)
 - [UEFI Specification](https://uefi.org/specifications)
 
 ## Contact
