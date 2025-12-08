@@ -1,7 +1,5 @@
-use alloc::vec::Vec;
 use fdt_header::{FdtHeader, FdtHeaderPtrExt};
-use fdt_reserve_entry::FdtReserveEntry;
-use fdt_reserve_entry::FdtReserveEntryIter;
+use fdt_reserve_entry::{FdtReserveEntry, FdtReserveEntryIter};
 use fdt_structure_block::StructureBlockIter;
 use node::{Node, NodeIter};
 use prop::{Prop, PropIter, StandardProp};
@@ -10,7 +8,6 @@ pub mod fdt_header;
 pub mod fdt_prop;
 pub mod fdt_reserve_entry;
 pub mod fdt_structure_block;
-
 pub mod node;
 pub mod prop;
 
@@ -230,6 +227,60 @@ impl Fdt {
         }
 
         (bootargs, stdout_path, stdin_path)
+    }
+
+    pub fn resolve_phys_addr(&self, path: &str) -> Option<usize> {
+        if let Some(path) = self.get_nodes_path(path) {
+            let node_index = path.iter().rposition(|x| x.is_some()).unwrap();
+            let node = path[node_index].as_ref().unwrap();
+            let unit_address = node
+                .unit_address()
+                .and_then(|s| usize::from_str_radix(s, 16).ok())
+                .unwrap_or_else(|| {
+                    assert!(node_index > 0);
+                    let prop = self.parse_standard_prop(node, StandardProp::Reg).unwrap();
+                    let (address_cells, size_cells) =
+                        self.parse_address_and_size_cells(path[node_index - 1].as_ref().unwrap());
+                    let (unit_address, _size) = prop
+                        .value_as_prop_encoded_array_cells_pair_iter(address_cells, size_cells)
+                        .next()
+                        .unwrap();
+                    unit_address
+                });
+            let mut reg_base_addr = unit_address;
+
+            // walk up the path and translate the address if necessary (using ranges property)
+            for index in (0..node_index).rev() {
+                let ancestor = path[index].as_ref().unwrap();
+                if let Some(ranges_prop) = self.parse_standard_prop(ancestor, StandardProp::Ranges)
+                {
+                    let (address_cells, size_cells) = self.parse_address_and_size_cells(ancestor);
+                    let parent_address_cells = {
+                        assert!(index > 0);
+                        let parent = path[index - 1].as_ref().unwrap();
+                        let (ac, _sc) = self.parse_address_and_size_cells(parent);
+                        ac
+                    };
+
+                    let mut ranges_iter = ranges_prop
+                        .value_as_prop_encoded_array_cells_triplet_iter(
+                            address_cells,
+                            parent_address_cells,
+                            size_cells,
+                        );
+                    let range = ranges_iter.find(|(child_addr, _parent_addr, size)| {
+                        reg_base_addr >= *child_addr && reg_base_addr < (*child_addr + *size)
+                    });
+                    if let Some((child_addr, parent_addr, _size)) = range {
+                        reg_base_addr = reg_base_addr - child_addr + parent_addr;
+                    }
+                }
+            }
+
+            return Some(reg_base_addr);
+        }
+
+        None
     }
 
     pub fn parse_address_and_size_cells(&self, node: &Node) -> (u32, u32) {
