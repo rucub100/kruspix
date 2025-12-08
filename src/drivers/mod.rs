@@ -1,5 +1,9 @@
-use crate::kernel::devicetree::fdt::Fdt;
-use crate::kernel::devicetree::{Node, PropertyValue, StandardProperty, get_devicetree};
+use crate::kernel::devicetree::{
+    fdt::Fdt,
+    get_devicetree,
+    node::Node,
+    prop::{PropertyValue, StandardProperty},
+};
 use crate::kprintln;
 
 pub mod platform;
@@ -52,6 +56,17 @@ fn match_driver(node: &Node) {
             compatible_prop.value()
         {
             kprintln!("Node {} compatible with {:?}", node.path(), compatible_list);
+            for compatible in compatible_list {
+                let driver = PLATFORM_DRIVERS
+                    .iter()
+                    .find(|d| d.compatible() == compatible);
+
+                if let Some(driver) = driver {
+                    kprintln!("INFO: initializing driver...");
+                    driver.init(node);
+                    break;
+                }
+            }
         } else {
             kprintln!("WARNING: 'compatible' property has unexpected format");
             return;

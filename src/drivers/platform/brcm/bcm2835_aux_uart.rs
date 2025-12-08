@@ -3,9 +3,11 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::drivers::PlatformDriver;
 use crate::kernel::console::{Console, register_early_console};
-use crate::kernel::devicetree::Node;
-use crate::kernel::devicetree::fdt::Fdt;
-use crate::kernel::devicetree::fdt::prop::StandardProp;
+use crate::kernel::devicetree::{
+    fdt::{Fdt, prop::StandardProp},
+    node::Node,
+};
+use crate::kprintln;
 
 /// I/O Data (8 bits)
 const AUX_MU_IO_REG_OFFSET: usize = 0x0;
@@ -91,6 +93,9 @@ impl PlatformDriver for MiniUartDriver {
         // FIXME: the driver has to be a factory for multiple instances of the device
         // so a global static variable is a bad idea
         // 1 driver <-> N devices
+        for prop in node.properties() {
+            kprintln!("Property: {}", prop.name());
+        }
     }
 
     fn static_init(&'static self, fdt: &Fdt, path: &str) {
