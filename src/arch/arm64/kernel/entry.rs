@@ -27,6 +27,7 @@ extern "C" fn _park_secondary_cores() {
         "mrs x4, mpidr_el1",
         // Affinity level 0
         "and x4, x4, #0xff",
+        // FIXME: we assume boot core has id 0 but we also could read it from FDT (if available)
         // continue only with the primary core (core 0) for now
         "cbz x4, 1f",
         "0:",
