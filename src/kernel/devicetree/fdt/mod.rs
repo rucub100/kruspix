@@ -232,53 +232,27 @@ impl Fdt {
         (bootargs, stdout_path, stdin_path)
     }
 
-    pub fn parse_address_and_size_cells(&self, node: &Node) -> Result<(u32, u32), ()> {
-        let mut address_cells: Option<u32> = None;
-        let mut size_cells: Option<u32> = None;
+    pub fn parse_address_and_size_cells(&self, node: &Node) -> (u32, u32) {
+        // SAFETY: DT-Spec v0.4, 2.3.5 #address-cells and #size-cells
+        // #address-cells: defaults to 2
+        // #size-cells: defaults to 1
+        let mut address_cells: u32 = 2;
+        let mut size_cells: u32 = 1;
 
-        for prop in self.prop_iter(&node) {
-            let name = prop.name();
-            let standard_prop = name.try_into();
-
-            // consider only standard properties
-            if standard_prop.is_err() {
-                continue;
-            }
-
-            let standard_prop = standard_prop?;
-            match standard_prop {
-                StandardProp::AddressCells => {
-                    let value = prop.value_as_u32()?;
-                    address_cells = Some(value);
-
-                    if size_cells.is_some() {
-                        break;
-                    }
-                }
-                StandardProp::SizeCells => {
-                    let value = prop.value_as_u32()?;
-                    size_cells = Some(value);
-
-                    if address_cells.is_some() {
-                        break;
-                    }
-                }
-                _ => { /* ignore other properties */ }
-            }
+        if let Some(prop) = self.parse_standard_prop(node, StandardProp::AddressCells) {
+            address_cells = prop.value_as_u32().unwrap()
         }
 
-        let address_cells = address_cells.ok_or(())?;
-        let size_cells = size_cells.ok_or(())?;
-        Ok((address_cells, size_cells))
+        if let Some(prop) = self.parse_standard_prop(node, StandardProp::SizeCells) {
+            size_cells = prop.value_as_u32().unwrap()
+        }
+
+        (address_cells, size_cells)
     }
 
-    pub fn parse_memory(&self) -> Result<[(usize, usize); 32], ()> {
-        let root = self.root_node()?;
-        let (root_address_cells, root_size_cells) = self.parse_address_and_size_cells(&root)?;
-
-        if root_address_cells == 0 || root_size_cells == 0 {
-            return Err(());
-        }
+    pub fn parse_memory(&self) -> [(usize, usize); 32] {
+        let root = self.root_node().unwrap();
+        let (root_address_cells, root_size_cells) = self.parse_address_and_size_cells(&root);
 
         let mut result: [(usize, usize); 32] = [(0, 0); 32];
         let mut memory_reg_index: usize = 0;
@@ -293,7 +267,7 @@ impl Fdt {
                 continue;
             }
 
-            let standard_prop = standard_prop?;
+            let standard_prop = standard_prop.unwrap();
             match standard_prop {
                 StandardProp::Reg => {
                     for (address, size) in prop.value_as_prop_encoded_array_cells_pair_iter(
@@ -316,7 +290,7 @@ impl Fdt {
             }
         }
 
-        Ok(result)
+        result
     }
 
     pub fn parse_reserved_memory(&self) -> Result<[(usize, usize); 32], ()> {
@@ -331,9 +305,9 @@ impl Fdt {
         let reserved_memory_node = self.reserved_memory_node();
         if let Some(reserved_memory_node) = reserved_memory_node {
             let root = self.root_node()?;
-            let (root_address_cells, root_size_cells) = self.parse_address_and_size_cells(&root)?;
+            let (root_address_cells, root_size_cells) = self.parse_address_and_size_cells(&root);
             let (address_cells, size_cells) =
-                self.parse_address_and_size_cells(&reserved_memory_node)?;
+                self.parse_address_and_size_cells(&reserved_memory_node);
 
             // address translation not supported
             if address_cells != root_address_cells || size_cells != root_size_cells {

@@ -86,7 +86,7 @@ fn parse_parameters(fdt: &Fdt) {
 }
 
 fn parse_memory(fdt: &Fdt) -> Result<([(usize, usize); 32], [(usize, usize); 32]), ()> {
-    let memory = fdt.parse_memory()?;
+    let memory = fdt.parse_memory();
     let reserved_memory = fdt.parse_reserved_memory()?;
 
     Ok((memory, reserved_memory))

@@ -1,7 +1,7 @@
 //! Mini UART output-only debug driver for Raspberry Pi 3b.
 //! This is only a minimal and incomplete implementation.
 //! It's just a hack to get some debug output during early boot.
-//! DOn't use this for anything serious!
+//! Don't use this for anything serious!
 
 use core::fmt::{self, Write};
 use core::ptr::{read_volatile, write_volatile};
