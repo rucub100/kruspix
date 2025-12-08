@@ -1,6 +1,8 @@
+use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::drivers::PlatformDriver;
+use crate::kernel::console::{Console, register_early_console};
 use crate::kernel::devicetree::Node;
 use crate::kernel::devicetree::fdt::Fdt;
 use crate::kernel::devicetree::fdt::prop::StandardProp;
@@ -28,13 +30,55 @@ const AUX_MU_STAT_REG_OFFSET: usize = 0x24;
 /// Baudrate (16 bits)
 const AUX_MU_BAUD_REG_OFFSET: usize = 0x28;
 
-static STATIC_BASE_ADDR: AtomicUsize = AtomicUsize::new(0);
+const TX_EMPTY: u8 = 1 << 5;
 
-pub struct MiniUart;
+pub struct MiniUartDriver {
+    reg_base: AtomicUsize,
+}
 
-impl MiniUart {}
+impl MiniUartDriver {
+    const fn new() -> Self {
+        Self {
+            reg_base: AtomicUsize::new(0),
+        }
+    }
+}
 
-impl PlatformDriver for MiniUart {
+impl Console for MiniUartDriver {
+    fn write(&self, s: &str) {
+        let reg_base = self.reg_base.load(Ordering::Acquire);
+        let aux_mu_lsr_reg = (reg_base + AUX_MU_LSR_REG_OFFSET) as *mut u8;
+        let aux_mu_io_reg = (reg_base + AUX_MU_IO_REG_OFFSET) as *mut u8;
+        let write_byte = |byte: u8| {
+            while unsafe { read_volatile(aux_mu_lsr_reg) } & TX_EMPTY == 0 {
+                core::hint::spin_loop();
+            }
+
+            unsafe {
+                write_volatile(aux_mu_io_reg, byte);
+            }
+        };
+
+        for byte in s.bytes() {
+            if byte == b'\n' {
+                write_byte(b'\r');
+            }
+            write_byte(byte);
+        }
+    }
+}
+
+struct MiniUartDevice {
+    reg_base: usize,
+}
+
+impl Console for MiniUartDevice {
+    fn write(&self, s: &str) {
+        todo!()
+    }
+}
+
+impl PlatformDriver for MiniUartDriver {
     fn compatible(&self) -> &str {
         "brcm,bcm2835-aux-uart"
     }
@@ -49,7 +93,7 @@ impl PlatformDriver for MiniUart {
         // 1 driver <-> N devices
     }
 
-    fn static_init(&self, fdt: &Fdt, path: &str) {
+    fn static_init(&'static self, fdt: &Fdt, path: &str) {
         // TODO: this code is not driver specific, move it to a common utility function
         // which shall translate the reg property of a node into addresses as seen by the CPU
         if let Some(path) = fdt.get_nodes_path(path) {
@@ -98,9 +142,15 @@ impl PlatformDriver for MiniUart {
                 }
             }
 
-            STATIC_BASE_ADDR.store(reg_base_addr, Ordering::Release);
+            if self
+                .reg_base
+                .compare_exchange(0, reg_base_addr, Ordering::Release, Ordering::Relaxed)
+                .is_ok()
+            {
+                register_early_console(self);
+            }
         }
     }
 }
 
-pub static DRIVER: MiniUart = MiniUart;
+pub static DRIVER: MiniUartDriver = MiniUartDriver::new();

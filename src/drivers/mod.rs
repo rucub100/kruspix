@@ -1,8 +1,7 @@
-use crate::kernel::devicetree::fdt::{Fdt, node::Node as FdtNode};
+use crate::kernel::devicetree::fdt::Fdt;
 use crate::kernel::devicetree::{Node, PropertyValue, StandardProperty, get_devicetree};
 use crate::kprintln;
 
-pub mod mini_uart;
 pub mod platform;
 
 pub trait PlatformDriver {
@@ -13,7 +12,7 @@ pub trait PlatformDriver {
     fn init(&self, node: &Node);
 
     /// Optional static initialization method, maybe called during early boot.
-    fn static_init(&self, fdt: &Fdt, path: &str) {
+    fn static_init(&'static self, fdt: &Fdt, path: &str) {
         // default implementation: do nothing
         // can be overridden by specific drivers to support static initialization
         // kernel may not call this method at all

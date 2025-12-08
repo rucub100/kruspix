@@ -2,8 +2,8 @@
 extern crate alloc;
 
 pub mod arch;
+pub mod common;
 pub mod drivers;
 pub mod kernel;
 pub mod mm;
 pub mod panic_handler;
-

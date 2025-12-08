@@ -1,7 +1,6 @@
-// TODO: replace the hardcoded backend with kernel abstraction layer
 #[macro_export]
 macro_rules! kprint {
-    ($($arg:tt)*) => ($crate::drivers::mini_uart::_print(format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::kernel::console::console_print(format_args!($($arg)*)));
 }
 
 #[macro_export]
