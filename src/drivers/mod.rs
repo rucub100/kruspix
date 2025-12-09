@@ -6,7 +6,21 @@ use crate::kernel::devicetree::{
 };
 use crate::kprintln;
 
-pub mod platform;
+mod bluetooth;
+mod clock_controller;
+mod display;
+mod dma_controller;
+mod ethernet;
+mod interrupt_controller;
+mod mailbox;
+mod mmc;
+mod rng;
+mod serial;
+mod syscon;
+mod timer;
+mod usb;
+mod watchdog;
+mod wifi;
 
 pub trait PlatformDriver {
     /// Returns the compatible string that this driver supports.
@@ -23,7 +37,7 @@ pub trait PlatformDriver {
     }
 }
 
-pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[&platform::brcm::bcm2835_aux_uart::DRIVER];
+pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[&serial::bcm2835_aux_uart::DRIVER];
 
 pub fn init_platform_drivers() {
     kprintln!("Initializing drivers...");
