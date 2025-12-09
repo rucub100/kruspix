@@ -414,14 +414,18 @@ extern "C" fn _enable_early_mmu() {
         ".quad 0",
         ".endr",
         "LEVEL_1_BLOCK_DESCRIPTOR_0:",
+        ".set addr, 0",
         ".rept 512",
         // AF = 1; SH = inner sharable; AttrIndx = 0
-        ".quad 0x701",
+        ".quad addr | 0x701",
+        ".set addr, addr + 0x40000000",
         ".endr",
         "LEVEL_1_BLOCK_DESCRIPTOR_1:",
+        ".set addr, 0",
         ".rept 512",
         // AF = 1; SH = inner sharable; AttrIndx = 2
-        ".quad 0x709",
+        ".quad addr | 0x709",
+        ".set addr, addr + 0x40000000",
         ".endr",
     );
 }
