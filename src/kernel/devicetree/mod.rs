@@ -12,6 +12,8 @@ use node::Node;
 pub mod fdt;
 pub mod node;
 pub mod prop;
+mod standard_properties;
+mod interrupts;
 
 static FDT: SpinLock<Option<Fdt>> = SpinLock::new(None);
 

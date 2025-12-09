@@ -5,6 +5,7 @@ use core::iter;
 use core::ptr::NonNull;
 
 use super::prop::{Property, PropertyValue, StandardProperty};
+use super::standard_properties::StandardProperties;
 
 pub struct Node {
     name: String,
@@ -22,7 +23,7 @@ impl Node {
             parent,
         }
     }
-    
+
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -45,17 +46,8 @@ impl Node {
     }
 
     pub fn is_compatible_with(&self, compatible: &str) -> bool {
-        let compatible_prop = self.properties.iter().find(|p| p.name() == "compatible");
-        if let Some(prop) = compatible_prop {
-            return match &prop.value() {
-                PropertyValue::Standard(StandardProperty::Compatible(c)) => {
-                    c.iter().any(|s| s == compatible)
-                }
-                _ => false,
-            };
-        }
-
-        false
+        self.compatible()
+            .is_some_and(|compatible_list| compatible_list.iter().any(|c| c == compatible))
     }
 
     pub fn path(&self) -> String {
@@ -87,7 +79,7 @@ impl Node {
     pub fn properties(&self) -> &Vec<Property> {
         &self.properties
     }
-    
+
     pub fn properties_mut(&mut self) -> &mut Vec<Property> {
         &mut self.properties
     }
@@ -95,7 +87,7 @@ impl Node {
     pub fn children(&self) -> &Vec<Box<Node>> {
         &self.children
     }
-    
+
     pub fn children_mut(&mut self) -> &mut Vec<Box<Node>> {
         &mut self.children
     }
@@ -113,5 +105,103 @@ impl Node {
             stack.extend(node.children.iter().rev().map(|b| b.as_ref()));
             Some(node)
         })
+    }
+}
+
+impl StandardProperties for Node {
+    fn compatible(&self) -> Option<&Vec<String>> {
+        self.properties
+            .iter()
+            .find(|p| p.name() == StandardProperty::COMPATIBLE)
+            .and_then(|p| match &p.value() {
+                PropertyValue::Standard(StandardProperty::Compatible(compatible_list)) => {
+                    Some(compatible_list)
+                }
+                _ => None,
+            })
+    }
+
+    fn model(&self) -> Option<&str> {
+        self.properties
+            .iter()
+            .find(|p| p.name() == StandardProperty::MODEL)
+            .and_then(|p| match p.value() {
+                PropertyValue::Standard(StandardProperty::Model(model)) => Some(model.as_str()),
+                _ => None,
+            })
+    }
+
+    fn p_handle(&self) -> Option<u32> {
+        self.properties
+            .iter()
+            .find(|p| p.name() == StandardProperty::P_HANDLE)
+            .and_then(|p| match p.value() {
+                PropertyValue::Standard(StandardProperty::PHandle(p_handle)) => Some(*p_handle),
+                _ => None,
+            })
+    }
+
+    fn status(&self) -> Option<&str> {
+        self.properties
+            .iter()
+            .find(|p| p.name() == StandardProperty::STATUS)
+            .and_then(|p| match p.value() {
+                PropertyValue::Standard(StandardProperty::Status(status)) => Some(status.as_str()),
+                _ => None,
+            })
+    }
+
+    fn address_cells(&self) -> u32 {
+        self.properties
+            .iter()
+            .find(|p| p.name() == StandardProperty::ADDRESS_CELLS)
+            .and_then(|p| match p.value() {
+                PropertyValue::Standard(StandardProperty::AddressCells(addr_cells)) => {
+                    Some(*addr_cells)
+                }
+                _ => None,
+            })
+            .unwrap_or(2)
+    }
+
+    fn size_cells(&self) -> u32 {
+        self.properties
+            .iter()
+            .find(|p| p.name() == StandardProperty::SIZE_CELLS)
+            .and_then(|p| match p.value() {
+                PropertyValue::Standard(StandardProperty::SizeCells(size_cells)) => {
+                    Some(*size_cells)
+                }
+                _ => None,
+            })
+            .unwrap_or(1)
+    }
+
+    fn reg(&self) -> Option<Vec<(&[u32], &[u32])>> {
+        todo!()
+    }
+
+    fn virtual_reg(&self) -> Option<u32> {
+        todo!()
+    }
+
+    fn ranges(&self) -> Option<Vec<(&[u32], &[u32], &[u32])>> {
+        todo!()
+    }
+
+    fn dma_ranges(&self) -> Option<Vec<(&[u32], &[u32], &[u32])>> {
+        todo!()
+    }
+
+    fn dma_coherent(&self) -> bool {
+        self.properties
+            .iter()
+            .any(|p| p.name() == StandardProperty::DMA_COHERENT)
+    }
+
+    fn dma_noncoherent(&self) -> bool {
+        self.properties
+            .iter()
+            .any(|p| p.name() == StandardProperty::DMA_NONCOHERENT)
     }
 }
