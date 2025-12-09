@@ -30,13 +30,13 @@ get a feel for bare metal programming and build your own operating system from t
 
 `src/`:
 - `arch/`: Architecture-specific code (e.g., ARM64) - boot, memory, CPU, interrupts, MMU, SMP, platform SoCs
+- `common/`: Common libraries and utilities
 - `docs`: Documentation and design notes
 - `drivers/`: Device drivers (e.g., UART, GPIO)
 - `fs/`: File system implementations
 - `init/`: Kernel initialization code
 - `ipc/`: Inter-process communication mechanisms
 - `kernel/`: Core kernel components (e.g., scheduler, locking)
-- `lib/`: Common libraries and utilities
 - `mm/`: Memory management (e.g., paging, allocators)
 - `net/`: Networking stack
 - `scripts/`: Scripts for automation
@@ -226,6 +226,7 @@ openocd -f interface/ftdi/um232h.cfg -f board/rpi3.cfg
 - [Device Tree Specification](https://www.devicetree.org/specifications/)
 - [Device Bindings](https://github.com/devicetree-org/devicetree-source/tree/master/Bindings)
 - [UEFI Specification](https://uefi.org/specifications)
+- [POSIX.1-2024](https://pubs.opengroup.org/onlinepubs/9799919799/)
 
 ## Contact
 
