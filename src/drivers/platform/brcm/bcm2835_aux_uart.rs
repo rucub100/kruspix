@@ -29,7 +29,7 @@ const AUX_MU_STAT_REG_OFFSET: usize = 0x24;
 /// Baudrate (16 bits)
 const AUX_MU_BAUD_REG_OFFSET: usize = 0x28;
 
-const TX_EMPTY: u8 = 1 << 5;
+const TX_EMPTY: u32 = 1 << 5;
 
 pub struct MiniUartDriver {
     reg_base: AtomicUsize,
@@ -44,17 +44,23 @@ impl MiniUartDriver {
 }
 
 impl Console for MiniUartDriver {
+    /// Write a string to the mini UART.
+    /// # Safety
+    /// This function is only suitable for early console output during boot.
     fn write(&self, s: &str) {
         let reg_base = self.reg_base.load(Ordering::Acquire);
-        let aux_mu_lsr_reg = (reg_base + AUX_MU_LSR_REG_OFFSET) as *mut u8;
-        let aux_mu_io_reg = (reg_base + AUX_MU_IO_REG_OFFSET) as *mut u8;
-        let write_byte = |byte: u8| {
-            while unsafe { read_volatile(aux_mu_lsr_reg) } & TX_EMPTY == 0 {
-                core::hint::spin_loop();
-            }
+        let aux_mu_lsr_reg = (reg_base + AUX_MU_LSR_REG_OFFSET) as *mut u32;
+        let aux_mu_io_reg = (reg_base + AUX_MU_IO_REG_OFFSET) as *mut u32;
+        let write_byte = |byte: u8| unsafe {
+            // the write before wait is preferred in this early console scenario
+            write_volatile(aux_mu_io_reg, byte as u32);
 
-            unsafe {
-                write_volatile(aux_mu_io_reg, byte);
+            // wait until transmit can accept another byte
+            loop {
+                if (read_volatile(aux_mu_lsr_reg) & TX_EMPTY) != 0 {
+                    break;
+                }
+                core::hint::spin_loop();
             }
         };
 
