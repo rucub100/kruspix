@@ -1,9 +1,14 @@
 use crate::mm::virt_to_phys;
 
-pub mod devicetree;
-pub mod print;
-pub mod sync;
+pub mod clk;
 pub mod console;
+pub mod devicetree;
+pub mod irq;
+pub mod power;
+pub mod print;
+pub mod sched;
+pub mod sync;
+pub mod time;
 
 pub fn kernel_addr_size() -> (usize, usize) {
     let kernel_start: usize;
