@@ -1,8 +1,10 @@
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use core::ffi::CStr;
 
 use super::PHandle;
 use super::fdt::raw_prop::RawProp;
+use super::interrupts::InterruptsProperty;
 use super::node::Node;
 use super::std_prop::{
     ADDRESS_CELLS, AddressCellsValue, COMPATIBLE, DMA_COHERENT, DMA_NONCOHERENT, DMA_RANGES,
@@ -127,8 +129,22 @@ impl Property {
             })),
             DMA_COHERENT => PropertyValue::Standard(StandardProperty::DmaCoherent),
             DMA_NONCOHERENT => PropertyValue::Standard(StandardProperty::DmaNoncoherent),
-            // TODO: match interrupt properties and other known properties
-            _ => PropertyValue::Unknown(prop.value().to_vec()),
+            // TODO: Interrupt Properties
+            // INTERRUPTS => todo!(),
+            // INTERRUPTS_EXTENDED => todo!(),
+            // INTERRUPT_PARENT => todo!(),
+            // INTERRUPT_CELLS => todo!(),
+            // INTERRUPT_CONTROLLER => todo!(),
+            // INTERRUPT_MAP => todo!(),
+            // INTERRUPT_MAP_MASK => todo!(),
+            // TODO?: Nexus Node Properties (MaybeNexusProperty)
+            // x if x.ends_with("-map") => todo!(),
+            // x if x.ends_with("-map-mask") => todo!(),
+            // x if x.ends_with("-map-pass-thru") => todo!(),
+            // x if x.starts_with("#") && x.ends_with("-cells") => todo!(),
+            // Fallbacks
+            _ if prop.value().is_empty() => PropertyValue::Empty,
+            _ => PropertyValue::Unknown(UnknownProperty(prop.value().to_vec())),
         };
 
         Self {
@@ -149,5 +165,83 @@ impl Property {
 #[derive(Debug)]
 pub enum PropertyValue {
     Standard(StandardProperty),
-    Unknown(Vec<u8>),
+    Interrupts(InterruptsProperty),
+    Unknown(UnknownProperty),
+    Empty,
+}
+
+#[derive(Debug)]
+pub struct UnknownProperty(Vec<u8>);
+
+impl UnknownProperty {
+    pub fn new(data: Vec<u8>) -> Self {
+        Self(data)
+    }
+}
+
+impl TryInto<u32> for UnknownProperty {
+    type Error = ();
+
+    fn try_into(self) -> Result<u32, Self::Error> {
+        self.0
+            .as_slice()
+            .try_into()
+            .map(u32::from_be_bytes)
+            .map_err(|_| ())
+    }
+}
+
+impl TryInto<PHandle> for UnknownProperty {
+    type Error = ();
+
+    fn try_into(self) -> Result<PHandle, Self::Error> {
+        self.try_into().map(|phandle| PHandle(phandle))
+    }
+}
+
+impl TryInto<u64> for UnknownProperty {
+    type Error = ();
+
+    fn try_into(self) -> Result<u64, Self::Error> {
+        self.0
+            .as_slice()
+            .try_into()
+            .map(u64::from_be_bytes)
+            .map_err(|_| ())
+    }
+}
+
+impl TryInto<String> for UnknownProperty {
+    type Error = ();
+
+    fn try_into(self) -> Result<String, Self::Error> {
+        CStr::from_bytes_with_nul(&self.0)
+            .map_err(|_| ())
+            .and_then(|cstr| cstr.to_str().map_err(|_| ()))
+            .map(|cstr| cstr.to_string())
+    }
+}
+
+impl TryInto<Vec<String>> for UnknownProperty {
+    type Error = ();
+
+    fn try_into(self) -> Result<Vec<String>, Self::Error> {
+        todo!()
+    }
+}
+
+impl<const N: usize> TryInto<Vec<[u32; N]>> for UnknownProperty {
+    type Error = ();
+
+    fn try_into(self) -> Result<Vec<[u32; N]>, Self::Error> {
+        todo!()
+    }
+}
+
+impl<const N: usize, const M: usize> TryInto<Vec<([u32; N], [u32; M])>> for UnknownProperty {
+    type Error = ();
+
+    fn try_into(self) -> Result<Vec<([u32; N], [u32; M])>, Self::Error> {
+        todo!()
+    }
 }

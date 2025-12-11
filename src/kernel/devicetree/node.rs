@@ -5,7 +5,11 @@ use core::iter;
 use core::ptr::NonNull;
 
 use super::PHandle;
-use super::interrupts::{ExtendedInterrupts, InterruptMap, InterruptMapMask, Interrupts};
+use super::interrupts::{
+    ExtendedInterrupts, INTERRUPT_CELLS, INTERRUPT_CONTROLLER, INTERRUPT_MAP, INTERRUPT_MAP_MASK,
+    INTERRUPT_PARENT, INTERRUPTS, INTERRUPTS_EXTENDED, InterruptMap, InterruptMapMask, Interrupts,
+    InterruptsProperty,
+};
 use super::interrupts::{InterruptController, InterruptGeneratingDevice, InterruptNexus};
 use super::prop::{Property, PropertyValue};
 use super::std_prop::StandardProperties;
@@ -252,36 +256,92 @@ impl StandardProperties for Node {
 
 impl InterruptGeneratingDevice for Node {
     fn interrupts(&self) -> Option<&Interrupts> {
-        todo!()
+        self.properties
+            .iter()
+            .find(|p| p.name() == INTERRUPTS)
+            .and_then(|p| match p.value() {
+                PropertyValue::Interrupts(InterruptsProperty::Interrupts(interrupts)) => {
+                    Some(interrupts)
+                }
+                _ => unreachable!(),
+            })
     }
 
     fn interrupts_extended(&self) -> Option<&ExtendedInterrupts> {
-        todo!()
+        self.properties
+            .iter()
+            .find(|p| p.name() == INTERRUPTS_EXTENDED)
+            .and_then(|p| match p.value() {
+                PropertyValue::Interrupts(InterruptsProperty::ExtendedInterrupts(
+                    ext_interrupts,
+                )) => Some(ext_interrupts),
+                _ => unreachable!(),
+            })
     }
 
     fn interrupt_parent(&self) -> Option<&PHandle> {
-        todo!()
+        self.properties
+            .iter()
+            .find(|p| p.name() == INTERRUPT_PARENT)
+            .and_then(|p| match p.value() {
+                PropertyValue::Interrupts(InterruptsProperty::InterruptParent(phandle)) => {
+                    Some(phandle)
+                }
+                _ => unreachable!(),
+            })
     }
 }
 impl InterruptController for Node {
-    fn interrupt_cells(&self) -> u32 {
-        todo!()
+    fn interrupt_cells(&self) -> Option<u32> {
+        self.properties
+            .iter()
+            .find(|p| p.name() == INTERRUPT_CELLS)
+            .and_then(|p| match p.value() {
+                PropertyValue::Interrupts(InterruptsProperty::InterruptCells(cells)) => {
+                    Some(*cells)
+                }
+                _ => unreachable!(),
+            })
     }
 
     fn is_interrupt_controller(&self) -> bool {
-        todo!()
+        self.properties
+            .iter()
+            .any(|p| p.name() == INTERRUPT_CONTROLLER)
     }
 }
 impl InterruptNexus for Node {
-    fn interrupt_cells(&self) -> u32 {
-        todo!()
+    fn interrupt_cells(&self) -> Option<u32> {
+        self.properties
+            .iter()
+            .find(|p| p.name() == INTERRUPT_CELLS)
+            .and_then(|p| match p.value() {
+                PropertyValue::Interrupts(InterruptsProperty::InterruptCells(cells)) => {
+                    Some(*cells)
+                }
+                _ => unreachable!(),
+            })
     }
 
     fn interrupt_map(&self) -> Option<&InterruptMap> {
-        todo!()
+        self.properties
+            .iter()
+            .find(|p| p.name() == INTERRUPT_MAP)
+            .and_then(|p| match p.value() {
+                PropertyValue::Interrupts(InterruptsProperty::InterruptMap(map)) => Some(map),
+                _ => unreachable!(),
+            })
     }
 
     fn interrupt_map_mask(&self) -> Option<&InterruptMapMask> {
-        todo!()
+        self.properties
+            .iter()
+            .find(|p| p.name() == INTERRUPT_MAP_MASK)
+            .and_then(|p| match p.value() {
+                PropertyValue::Interrupts(InterruptsProperty::InterruptMapMask(map_mask)) => {
+                    Some(map_mask)
+                }
+                _ => unreachable!(),
+            })
     }
 }
