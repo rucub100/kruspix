@@ -3,7 +3,7 @@ target = "aarch64-unknown-none"
 
 [target.aarch64-unknown-none]
 rustflags = [
-    # "-C", "link-arg=-Tsrc/arch/arm64/kernel_release.ld", # see build.rs
+    # "-C", "link-arg=-Tsrc/arch/arm64/kernel.ld", # see build.rs
     "-C", "target-cpu=cortex-a53",
     "-C", "target-feature=+neon"
 ]
