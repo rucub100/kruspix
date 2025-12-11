@@ -1,10 +1,11 @@
 use core::ffi::{CStr, c_char};
+use core::marker::PhantomData;
 use core::ptr;
 use core::slice;
 
 use super::fdt_prop::FdtProp;
-use super::node::Node;
-use super::prop::Prop;
+use super::raw_node::RawNode;
+use super::raw_prop::RawProp;
 
 pub const FDT_BEGIN_NODE: u32 = const { 0x00000001 };
 pub const FDT_END_NODE: u32 = const { 0x00000002 };
@@ -12,36 +13,42 @@ pub const FDT_PROP: u32 = const { 0x00000003 };
 pub const FDT_NOP: u32 = const { 0x00000004 };
 pub const FDT_END: u32 = const { 0x00000009 };
 
-pub struct StructureBlockEntry {
-    kind: StructureBlockEntryKind,
+pub struct StructureBlockEntry<'a> {
+    kind: StructureBlockEntryKind<'a>,
 }
 
-pub enum StructureBlockEntryKind {
-    BeginNode(Node),
+pub enum StructureBlockEntryKind<'a> {
+    BeginNode(RawNode<'a>),
     EndNode,
-    Prop(Prop),
+    Prop(RawProp<'a>),
 }
 
-impl StructureBlockEntry {
-    pub fn kind(&self) -> &StructureBlockEntryKind {
+impl<'a> StructureBlockEntry<'a> {
+    pub fn kind(&self) -> &'a StructureBlockEntryKind<'_> {
         &self.kind
+    }
+
+    pub fn into_kind(self) -> StructureBlockEntryKind<'a> {
+        self.kind
     }
 }
 
-pub struct StructureBlockIter {
+pub struct StructureBlockIter<'a> {
     strings_block_addr: usize,
     token_be_ptr: *const u32,
     prev_token: u32,
     skip_props: bool,
+    _marker: PhantomData<&'a ()>,
 }
 
-impl StructureBlockIter {
+impl<'a> StructureBlockIter<'a> {
     pub fn new(token_be_ptr: *const u32, strings_block_address: usize) -> Self {
         StructureBlockIter {
             strings_block_addr: strings_block_address,
             token_be_ptr,
             prev_token: 0,
             skip_props: false,
+            _marker: PhantomData,
         }
     }
 
@@ -51,6 +58,7 @@ impl StructureBlockIter {
             token_be_ptr,
             prev_token: 0,
             skip_props: true,
+            _marker: PhantomData,
         }
     }
 
@@ -101,8 +109,8 @@ impl StructureBlockIter {
     }
 }
 
-impl Iterator for StructureBlockIter {
-    type Item = Result<StructureBlockEntry, ()>;
+impl<'a> Iterator for StructureBlockIter<'a> {
+    type Item = Result<StructureBlockEntry<'a>, ()>;
 
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
@@ -159,7 +167,7 @@ impl Iterator for StructureBlockIter {
                     };
 
                     Some(Ok(StructureBlockEntry {
-                        kind: StructureBlockEntryKind::BeginNode(Node::new(
+                        kind: StructureBlockEntryKind::BeginNode(RawNode::new(
                             name,
                             props_ptr,
                             children_ptr,
@@ -200,7 +208,7 @@ impl Iterator for StructureBlockIter {
 
                     self.prev_token = token;
                     Some(Ok(StructureBlockEntry {
-                        kind: StructureBlockEntryKind::Prop(Prop::new(prop_name, prop_value)),
+                        kind: StructureBlockEntryKind::Prop(RawProp::new(prop_name, prop_value)),
                     }))
                 }
                 FDT_END => {

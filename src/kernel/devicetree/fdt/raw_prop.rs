@@ -1,24 +1,30 @@
-use core::ffi::{c_char, CStr};
+use core::ffi::{CStr, c_char};
+use core::marker::PhantomData;
 use core::slice;
+
+use crate::kernel::devicetree::std_prop::{
+    ADDRESS_CELLS, COMPATIBLE, DMA_COHERENT, DMA_NONCOHERENT, DMA_RANGES, MODEL, PHANDLE, RANGES,
+    REG, SIZE_CELLS, STATUS, VIRTUAL_REG,
+};
 
 use super::fdt_prop::FdtProp;
 use super::fdt_structure_block::{FDT_NOP, FDT_PROP};
 
-pub struct Prop {
-    name: &'static str,
-    value: &'static [u8],
+pub struct RawProp<'a> {
+    name: &'a str,
+    value: &'a [u8],
 }
 
-impl Prop {
-    pub fn new(name: &'static str, value: &'static [u8]) -> Self {
-        Prop { name, value }
+impl<'a> RawProp<'a> {
+    pub fn new(name: &'a str, value: &'a [u8]) -> Self {
+        RawProp { name, value }
     }
-    
-    pub fn name(&self) -> &'static str {
+
+    pub fn name(&self) -> &'a str {
         self.name
     }
 
-    pub fn value(&self) -> &'static [u8] {
+    pub fn value(&self) -> &'a [u8] {
         self.value
     }
 
@@ -42,12 +48,15 @@ impl Prop {
         unsafe { Ok(u64::from_be(*value_ptr)) }
     }
 
-    pub fn value_as_string(&self) -> Result<&'static str, ()> {
+    pub fn value_as_string(&self) -> Result<&'a str, ()> {
         if self.value.is_empty() {
             return Err(());
         }
 
-        CStr::from_bytes_with_nul(self.value).map_err(|_| ())?.to_str().map_err(|_| ())
+        CStr::from_bytes_with_nul(self.value)
+            .map_err(|_| ())?
+            .to_str()
+            .map_err(|_| ())
     }
 
     pub fn value_as_phandle(&self) -> Result<u32, ()> {
@@ -60,7 +69,7 @@ impl Prop {
         unsafe { Ok(*value_ptr) }
     }
 
-    pub fn value_as_string_list_iter(&self) -> StringListIter {
+    pub fn value_as_string_list_iter(&self) -> StringListIter<'_> {
         StringListIter {
             string_list: self.value,
             current_index: 0,
@@ -72,7 +81,6 @@ impl Prop {
 
         let chunk_size = size as usize * 4;
         assert_eq!(self.value.len() % chunk_size, 0);
-        
 
         self.value.chunks(chunk_size).map(move |item| {
             let mut result: usize = 0;
@@ -80,16 +88,22 @@ impl Prop {
                 result <<= 32;
                 result += u32::from_be_bytes(chunk.try_into().unwrap()) as usize;
             }
-            
+
             result
         })
     }
-    
-    pub fn value_as_prop_encoded_array_cells_pair_iter(&self, size_1: u32, size_2: u32) -> impl Iterator<Item = (usize, usize)> {
-        // FIXME: node may specify zero size cells which means that the corresponding value is omitted
-        // so we have to handle that case here (see devicetree spec v0.4, 2.3.6 reg)
+
+    /// # Safety
+    /// This function will panic if `size_1` or `size_2` is zero or greater than 2.
+    pub fn value_as_prop_encoded_array_cells_pair_iter(
+        &self,
+        size_1: u32,
+        size_2: u32,
+    ) -> impl Iterator<Item = (usize, usize)> {
         assert!(size_1 > 0);
+        assert!(size_1 <= 2);
         assert!(size_2 > 0);
+        assert!(size_2 <= 2);
 
         let chunk_size = (size_1 + size_2) as usize * 4;
         assert_eq!(self.value.len() % chunk_size, 0);
@@ -116,7 +130,12 @@ impl Prop {
         })
     }
 
-    pub fn value_as_prop_encoded_array_cells_triplet_iter(&self, size_1: u32, size_2: u32, size_3: u32) -> impl Iterator<Item = (usize, usize, usize)> {
+    pub fn value_as_prop_encoded_array_cells_triplet_iter(
+        &self,
+        size_1: u32,
+        size_2: u32,
+        size_3: u32,
+    ) -> impl Iterator<Item = (usize, usize, usize)> {
         assert!(size_1 > 0);
         assert!(size_2 > 0);
         assert!(size_3 > 0);
@@ -155,13 +174,13 @@ impl Prop {
     }
 }
 
-pub struct StringListIter {
-    string_list: &'static [u8],
+pub struct StringListIter<'a> {
+    string_list: &'a [u8],
     current_index: usize,
 }
 
-impl Iterator for StringListIter {
-    type Item = Result<&'static CStr, ()>;
+impl<'a> Iterator for StringListIter<'a> {
+    type Item = Result<&'a str, ()>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_index >= self.string_list.len() {
@@ -178,20 +197,22 @@ impl Iterator for StringListIter {
             self.current_index = self.string_list.len();
         }
 
-        Some(cstr)
+        Some(cstr.and_then(|cstr| cstr.to_str().map_err(|_| ())))
     }
 }
 
-pub struct PropIter {
+pub struct PropIter<'a> {
     prop_token_ptr: *const u32,
     strings_block_addr: usize,
+    _marker: PhantomData<&'a ()>,
 }
 
-impl PropIter {
+impl<'a> PropIter<'a> {
     pub fn new(prop_ptr: *const u32, strings_block_address: usize) -> Self {
         PropIter {
             strings_block_addr: strings_block_address,
             prop_token_ptr: prop_ptr,
+            _marker: PhantomData,
         }
     }
 
@@ -216,8 +237,8 @@ impl PropIter {
     }
 }
 
-impl Iterator for PropIter {
-    type Item = Prop;
+impl<'a> Iterator for PropIter<'a> {
+    type Item = RawProp<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.next_prop_token();
@@ -245,7 +266,7 @@ impl Iterator for PropIter {
             let name = CStr::from_ptr(prop_name_ptr).to_str().unwrap();
             let value = slice::from_raw_parts(prop_value_ptr, prop_value_len);
 
-            Some(Prop { name, value })
+            Some(RawProp { name, value })
         }
     }
 }
@@ -261,7 +282,7 @@ pub enum PropValue {
 }
 
 #[derive(PartialEq)]
-pub enum StandardProp {
+pub enum StandardProperty {
     Compatible,
     Model,
     PHandle,
@@ -276,71 +297,43 @@ pub enum StandardProp {
     DmaNoncoherent,
 }
 
-impl TryFrom<&str> for StandardProp {
+impl TryFrom<&str> for StandardProperty {
     type Error = ();
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            "compatible" => Ok(StandardProp::Compatible),
-            "model" => Ok(StandardProp::Model),
-            "phandle" => Ok(StandardProp::PHandle),
-            "status" => Ok(StandardProp::Status),
-            "#address-cells" => Ok(StandardProp::AddressCells),
-            "#size-cells" => Ok(StandardProp::SizeCells),
-            "reg" => Ok(StandardProp::Reg),
-            "virtual-reg" => Ok(StandardProp::VirtualReg),
-            "ranges" => Ok(StandardProp::Ranges),
-            "dma-ranges" => Ok(StandardProp::DmaRanges),
-            "dma-coherent" => Ok(StandardProp::DmaCoherent),
-            "dma-noncoherent" => Ok(StandardProp::DmaNoncoherent),
+            COMPATIBLE => Ok(StandardProperty::Compatible),
+            MODEL => Ok(StandardProperty::Model),
+            PHANDLE => Ok(StandardProperty::PHandle),
+            STATUS => Ok(StandardProperty::Status),
+            ADDRESS_CELLS => Ok(StandardProperty::AddressCells),
+            SIZE_CELLS => Ok(StandardProperty::SizeCells),
+            REG => Ok(StandardProperty::Reg),
+            VIRTUAL_REG => Ok(StandardProperty::VirtualReg),
+            RANGES => Ok(StandardProperty::Ranges),
+            DMA_RANGES => Ok(StandardProperty::DmaRanges),
+            DMA_COHERENT => Ok(StandardProperty::DmaCoherent),
+            DMA_NONCOHERENT => Ok(StandardProperty::DmaNoncoherent),
             _ => Err(()),
         }
     }
 }
 
-impl From<StandardProp> for &str {
-    fn from(value: StandardProp) -> Self {
+impl From<StandardProperty> for &str {
+    fn from(value: StandardProperty) -> Self {
         match value {
-            StandardProp::Compatible => "compatible",
-            StandardProp::Model => "model",
-            StandardProp::PHandle => "phandle",
-            StandardProp::Status => "status",
-            StandardProp::AddressCells => "#address-cells",
-            StandardProp::SizeCells => "#size-cells",
-            StandardProp::Reg => "reg",
-            StandardProp::VirtualReg => "virtual-reg",
-            StandardProp::Ranges => "ranges",
-            StandardProp::DmaRanges => "dma-ranges",
-            StandardProp::DmaCoherent => "dma-coherent",
-            StandardProp::DmaNoncoherent => "dma-noncoherent",
+            StandardProperty::Compatible => COMPATIBLE,
+            StandardProperty::Model => MODEL,
+            StandardProperty::PHandle => PHANDLE,
+            StandardProperty::Status => STATUS,
+            StandardProperty::AddressCells => ADDRESS_CELLS,
+            StandardProperty::SizeCells => SIZE_CELLS,
+            StandardProperty::Reg => REG,
+            StandardProperty::VirtualReg => VIRTUAL_REG,
+            StandardProperty::Ranges => RANGES,
+            StandardProperty::DmaRanges => DMA_RANGES,
+            StandardProperty::DmaCoherent => DMA_COHERENT,
+            StandardProperty::DmaNoncoherent => DMA_NONCOHERENT,
         }
     }
-}
-
-pub enum InterruptGenDevProp {
-    Interrupts,
-    InterruptParent,
-    InterruptsExtended,
-}
-
-pub enum InterruptControllersProp {
-    InterruptCells,
-    InterruptController,
-}
-
-pub enum InterruptNexusProp {
-    InterruptMap,
-    InterruptMapMask,
-    InterruptCells,
-}
-
-pub enum ChassisType {
-    Desktop,
-    Laptop,
-    Convertible,
-    Server,
-    Tablet,
-    Handset,
-    Watch,
-    Embedded,
 }

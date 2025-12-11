@@ -1,3 +1,5 @@
+use core::marker::PhantomData;
+
 /// Representation of a reserved memory entry in a Flattened Device Tree (FDT).
 #[repr(C, align(8))]
 pub struct FdtReserveEntry {
@@ -5,13 +7,17 @@ pub struct FdtReserveEntry {
     size: u64,
 }
 
-pub struct FdtReserveEntryIter {
+pub struct FdtReserveEntryIter<'a> {
     current: *const FdtReserveEntry,
+    _marker: PhantomData<&'a FdtReserveEntry>,
 }
 
-impl From<*const FdtReserveEntry> for FdtReserveEntryIter {
+impl<'a> From<*const FdtReserveEntry> for FdtReserveEntryIter<'a> {
     fn from(fdt_reserve_entry_ptr: *const FdtReserveEntry) -> Self {
-        FdtReserveEntryIter { current: fdt_reserve_entry_ptr }
+        FdtReserveEntryIter {
+            current: fdt_reserve_entry_ptr,
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -27,8 +33,8 @@ impl FdtReserveEntry {
     }
 }
 
-impl Iterator for FdtReserveEntryIter {
-    type Item = &'static FdtReserveEntry;
+impl<'a> Iterator for FdtReserveEntryIter<'a> {
+    type Item = &'a FdtReserveEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {

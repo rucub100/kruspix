@@ -2,7 +2,8 @@ use crate::kernel::devicetree::{
     fdt::Fdt,
     get_devicetree,
     node::Node,
-    prop::{PropertyValue, StandardProperty},
+    prop::PropertyValue,
+    std_prop::{COMPATIBLE, StandardProperty},
 };
 use crate::kprintln;
 
@@ -30,7 +31,7 @@ pub trait PlatformDriver {
     fn init(&self, node: &Node);
 
     /// Optional static initialization method, maybe called during early boot.
-    fn static_init(&'static self, fdt: &Fdt, path: &str) {
+    fn static_init(&'static self, _fdt: &Fdt, _path: &str) {
         // default implementation: do nothing
         // can be overridden by specific drivers to support static initialization
         // kernel may not call this method at all
@@ -60,10 +61,7 @@ pub fn init_platform_drivers() {
 }
 
 fn match_driver(node: &Node) {
-    let compatible_prop = node
-        .properties()
-        .iter()
-        .find(|p| p.name() == StandardProperty::COMPATIBLE);
+    let compatible_prop = node.properties().iter().find(|p| p.name() == COMPATIBLE);
 
     if let Some(compatible_prop) = compatible_prop {
         if let PropertyValue::Standard(StandardProperty::Compatible(compatible_list)) =

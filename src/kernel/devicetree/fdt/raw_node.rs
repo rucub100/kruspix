@@ -1,30 +1,23 @@
-use alloc::vec::Vec;
-use core::cmp::PartialEq;
-use core::ffi::CStr;
-
 use super::fdt_structure_block::{StructureBlockEntryKind, StructureBlockIter};
+use crate::kernel::devicetree::node::{ALIASES, CHOSEN, CPUS, MEMORY, RESERVED_MEMORY, ROOT};
 
 #[derive(Clone, Copy)]
-pub struct Node {
-    name: &'static str,
-    kind: NodeKind,
+pub struct RawNode<'a> {
+    name: &'a str,
     props_ptr: *const u32,
     children_ptr: *const u32,
 }
 
-impl Node {
-    pub fn new(name: &'static str, props_ptr: *const u32, children_ptr: *const u32) -> Self {
-        let kind = Self::_parse_kind(name);
-
-        Node {
+impl<'a> RawNode<'a> {
+    pub fn new(name: &'a str, props_ptr: *const u32, children_ptr: *const u32) -> Self {
+        Self {
             name,
-            kind,
             props_ptr,
             children_ptr,
         }
     }
 
-    pub fn name(&self) -> &'static str {
+    pub fn name(&self) -> &'a str {
         self.name
     }
 
@@ -36,35 +29,27 @@ impl Node {
         self.name.split('@').skip(1).next()
     }
 
-    pub fn kind(&self) -> NodeKind {
-        self.kind
-    }
-
     pub fn is_root(&self) -> bool {
-        self.kind == NodeKind::Root
+        self.node_name() == ROOT
     }
 
     pub fn is_aliases(&self) -> bool {
-        self.kind == NodeKind::Aliases
+        self.node_name() == ALIASES
     }
 
     pub fn is_memory(&self) -> bool {
-        self.kind == NodeKind::Memory
+        self.node_name() == MEMORY
     }
     pub fn is_reserved_memory(&self) -> bool {
-        self.kind == NodeKind::ReservedMemory
+        self.node_name() == RESERVED_MEMORY
     }
 
     pub fn is_chosen(&self) -> bool {
-        self.kind == NodeKind::Chosen
+        self.node_name() == CHOSEN
     }
 
     pub fn is_cpus(&self) -> bool {
-        self.kind == NodeKind::Cpus
-    }
-
-    pub fn is_generic(&self) -> bool {
-        self.kind == NodeKind::Generic
+        self.node_name() == CPUS
     }
 
     pub fn props_ptr(&self) -> *const u32 {
@@ -74,50 +59,15 @@ impl Node {
     pub fn children_ptr(&self) -> *const u32 {
         self.children_ptr
     }
-
-    fn _parse_kind(name: &'static str) -> NodeKind {
-        match name {
-            s if s.is_empty() => NodeKind::Root,
-            "aliases" => NodeKind::Aliases,
-            mem if mem.starts_with("memory") => {
-                if mem.len() == 6 || mem.as_bytes()[6] == b'@' {
-                    NodeKind::Memory
-                } else {
-                    NodeKind::Generic
-                }
-            }
-            rsv_mem if rsv_mem.starts_with("reserved-memory") => {
-                if rsv_mem.len() == 15 || rsv_mem.as_bytes()[15] == b'@' {
-                    NodeKind::ReservedMemory
-                } else {
-                    NodeKind::Generic
-                }
-            }
-            "chosen" => NodeKind::Chosen,
-            "cpus" => NodeKind::Cpus,
-            _ => NodeKind::Generic,
-        }
-    }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum NodeKind {
-    Root,
-    Aliases,
-    Memory,
-    ReservedMemory,
-    Chosen,
-    Cpus,
-    Generic,
-}
-
-pub struct NodeIter {
-    structure_block_iter: StructureBlockIter,
+pub struct NodeIter<'a> {
+    structure_block_iter: StructureBlockIter<'a>,
     current_depth: isize,
     max_depth: isize,
 }
 
-impl NodeIter {
+impl<'a> NodeIter<'a> {
     pub fn new(token_be_ptr: *const u32, strings_block_address: usize, max_depth: isize) -> Self {
         assert!(max_depth > 0);
 
@@ -132,8 +82,8 @@ impl NodeIter {
     }
 }
 
-impl Iterator for NodeIter {
-    type Item = Node;
+impl<'a> Iterator for NodeIter<'a> {
+    type Item = RawNode<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -153,14 +103,14 @@ impl Iterator for NodeIter {
 
             let entry = result.unwrap();
 
-            match entry.kind() {
+            match entry.into_kind() {
                 StructureBlockEntryKind::BeginNode(node) => {
                     self.current_depth += 1;
                     if self.current_depth > self.max_depth {
                         continue;
                     }
 
-                    return Some(node.clone());
+                    return Some(node);
                 }
                 StructureBlockEntryKind::EndNode => {
                     self.current_depth -= 1;

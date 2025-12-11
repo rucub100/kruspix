@@ -8,12 +8,13 @@ use crate::kernel::sync::spinlock::SpinLock;
 
 use fdt::{Fdt, fdt_structure_block::StructureBlockEntryKind};
 use node::Node;
+use crate::kernel::devicetree::prop::Property;
 
 pub mod fdt;
 pub mod node;
 pub mod prop;
-mod standard_properties;
-mod interrupts;
+pub mod std_prop;
+pub mod interrupts;
 
 static FDT: SpinLock<Option<Fdt>> = SpinLock::new(None);
 
@@ -82,8 +83,14 @@ impl TryFrom<&Fdt> for DeviceTree {
             .map(|r| (r.address() as usize, r.size() as usize))
             .collect();
 
-        let mut nodes: Vec<Box<Node>> = vec![];
+        // TODO: refactor the concept to a builder pattern to avoid
+        // node.properties_mut() and node.children_mut()
+        let mut nodes_stack: Vec<Box<Node>> = vec![];
 
+        // SAFETY: from the DTSpec we know this is a depth-first traversal
+        // we also know that for each node the FDT representation starts with the node name
+        // followed by properties and ends with the children nodes; thus we can
+        // safely assume that the parent nodes in the stack have properties defined
         for entry in fdt.structure_block_iter() {
             let entry = entry?;
 
@@ -91,18 +98,18 @@ impl TryFrom<&Fdt> for DeviceTree {
                 StructureBlockEntryKind::BeginNode(node) => {
                     let name = node.name().to_string();
 
-                    let parent = nodes
+                    let parent = nodes_stack
                         .last()
                         .map(|parent_box| NonNull::from(parent_box.as_ref()));
 
                     let node = Box::new(Node::new(name, parent));
 
-                    nodes.push(node);
+                    nodes_stack.push(node);
                 }
                 StructureBlockEntryKind::EndNode => {
-                    let child = nodes.pop().ok_or(())?;
+                    let child = nodes_stack.pop().ok_or(())?;
 
-                    if let Some(parent) = nodes.last_mut() {
+                    if let Some(parent) = nodes_stack.last_mut() {
                         parent.children_mut().push(child);
                     } else {
                         return Ok(DeviceTree {
@@ -117,8 +124,9 @@ impl TryFrom<&Fdt> for DeviceTree {
                     }
                 }
                 StructureBlockEntryKind::Prop(prop) => {
-                    if let Some(current_node) = nodes.last_mut() {
-                        current_node.properties_mut().push(prop.try_into()?);
+                    if let Some(current_node) = nodes_stack.last_mut() {
+                        let property = Property::from_raw(prop, &current_node);
+                        current_node.properties_mut().push(property);
                     }
                 }
             };

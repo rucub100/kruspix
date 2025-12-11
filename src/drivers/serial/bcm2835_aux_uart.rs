@@ -78,7 +78,7 @@ struct MiniUartDevice {
 }
 
 impl Console for MiniUartDevice {
-    fn write(&self, s: &str) {
+    fn write(&self, _s: &str) {
         todo!()
     }
 }

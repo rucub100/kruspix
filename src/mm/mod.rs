@@ -47,8 +47,8 @@ pub fn init_phys_mem(
         .chain(iter::once(&kernel_region))
     {
         let suffix = match (addr, size) {
-            (addr, size) if addr == &kernel_region.0 => "(KERNEL)",
-            (addr, size) if addr == &fdt_addr => "(FDT)",
+            (addr, _size) if addr == &kernel_region.0 => "(KERNEL)",
+            (addr, _size) if addr == &fdt_addr => "(FDT)",
             _ => "(I/O PERIPHERALS)",
         };
 

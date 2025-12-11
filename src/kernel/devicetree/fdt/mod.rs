@@ -1,15 +1,17 @@
+use crate::kernel::devicetree::node::{CHOSEN_BOOTARGS, CHOSEN_STDIN_PATH, CHOSEN_STDOUT_PATH};
+
 use fdt_header::{FdtHeader, FdtHeaderPtrExt};
 use fdt_reserve_entry::{FdtReserveEntry, FdtReserveEntryIter};
 use fdt_structure_block::StructureBlockIter;
-use node::{Node, NodeIter};
-use prop::{Prop, PropIter, StandardProp};
+use raw_node::{NodeIter, RawNode};
+use raw_prop::{PropIter, RawProp, StandardProperty};
 
 pub mod fdt_header;
 pub mod fdt_prop;
 pub mod fdt_reserve_entry;
 pub mod fdt_structure_block;
-pub mod node;
-pub mod prop;
+pub mod raw_node;
+pub mod raw_prop;
 
 const PATH_SEPARATOR: char = '/';
 const MAX_PATH_DEPTH: usize = 64;
@@ -53,7 +55,7 @@ impl Fdt {
         self.fdt_header.boot_cpuid_phys()
     }
 
-    pub fn memory_reservation_block_iter(&self) -> FdtReserveEntryIter {
+    pub fn memory_reservation_block_iter(&self) -> FdtReserveEntryIter<'_> {
         let header = FdtHeader::at_addr(self.fdt_header.addr());
         let offset = header.mem_rsv_map_offset() as usize;
         let address = self.fdt_header.addr() + offset;
@@ -61,7 +63,7 @@ impl Fdt {
         fdt_reserve_entry_ptr.into()
     }
 
-    pub fn structure_block_iter(&self) -> StructureBlockIter {
+    pub fn structure_block_iter(&self) -> StructureBlockIter<'_> {
         let header = FdtHeader::at_addr(self.fdt_header.addr());
         let structure_block_offset = header.structure_block_offset() as usize;
         let strings_block_offset = header.strings_block_offset() as usize;
@@ -71,7 +73,7 @@ impl Fdt {
         StructureBlockIter::new(token_be_ptr, strings_block_address)
     }
 
-    pub fn node_iter(&self) -> NodeIter {
+    pub fn node_iter(&self) -> NodeIter<'_> {
         let header = FdtHeader::at_addr(self.fdt_header.addr());
         let structure_block_offset = header.structure_block_offset() as usize;
         let strings_block_offset = header.strings_block_offset() as usize;
@@ -81,12 +83,12 @@ impl Fdt {
         NodeIter::new(token_be_ptr, strings_block_address, isize::MAX)
     }
 
-    pub fn root_node(&self) -> Result<Node, ()> {
+    pub fn root_node(&self) -> Result<RawNode<'_>, ()> {
         let root = self.node_iter().find(|node| node.is_root());
         root.ok_or(())
     }
 
-    pub fn aliases_node(&self) -> Option<Node> {
+    pub fn aliases_node(&self) -> Option<RawNode<'_>> {
         self.node_iter().find(|node| node.is_aliases())
     }
 
@@ -104,38 +106,38 @@ impl Fdt {
             .and_then(|prop| prop.value_as_string().ok())
     }
 
-    pub fn memory_node_iter(&self) -> impl Iterator<Item = Node> {
+    pub fn memory_node_iter(&self) -> impl Iterator<Item = RawNode<'_>> {
         self.node_iter().filter(|node| node.is_memory())
     }
 
-    pub fn reserved_memory_node(&self) -> Option<Node> {
+    pub fn reserved_memory_node(&self) -> Option<RawNode<'_>> {
         self.node_iter().find(|node| node.is_reserved_memory())
     }
 
-    pub fn chosen_node(&self) -> Option<Node> {
+    pub fn chosen_node(&self) -> Option<RawNode<'_>> {
         self.node_iter().find(|node| node.is_chosen())
     }
 
-    pub fn cpus_node(&self) -> Result<Node, ()> {
+    pub fn cpus_node(&self) -> Result<RawNode<'_>, ()> {
         let root = self.node_iter().find(|node| node.is_cpus());
         root.ok_or(())
     }
 
-    pub fn prop_iter(&self, node: &Node) -> PropIter {
+    pub fn prop_iter(&self, node: &RawNode) -> PropIter<'_> {
         let header = FdtHeader::at_addr(self.fdt_header.addr());
         let strings_block_offset = header.strings_block_offset() as usize;
         let strings_block_address = self.fdt_header.addr() + strings_block_offset;
         PropIter::new(node.props_ptr(), strings_block_address)
     }
 
-    pub fn child_iter(&self, node: &Node) -> NodeIter {
+    pub fn child_iter(&self, node: &RawNode) -> NodeIter<'_> {
         let header = FdtHeader::at_addr(self.fdt_header.addr());
         let strings_block_offset = header.strings_block_offset() as usize;
         let strings_block_address = self.fdt_header.addr() + strings_block_offset;
         NodeIter::new(node.children_ptr(), strings_block_address, 1)
     }
 
-    pub fn get_nodes_path(&self, path: &str) -> Option<[Option<Node>; MAX_PATH_DEPTH]> {
+    pub fn get_nodes_path(&self, path: &str) -> Option<[Option<RawNode<'_>>; MAX_PATH_DEPTH]> {
         let path = self.alias_path(path)?;
         let mut result = [None; MAX_PATH_DEPTH];
         let mut index: usize = 0;
@@ -167,7 +169,7 @@ impl Fdt {
         Some(result)
     }
 
-    pub fn get_node_by_path(&self, path: &str) -> Option<Node> {
+    pub fn get_node_by_path(&self, path: &str) -> Option<RawNode<'_>> {
         let path = self.alias_path(path)?;
         let mut current_node = self.root_node().ok()?;
         for segment in path.split(PATH_SEPARATOR).filter(|s| !s.is_empty()) {
@@ -184,11 +186,15 @@ impl Fdt {
         Some(current_node)
     }
 
-    pub fn parse_standard_prop(&self, node: &Node, standard_prop: StandardProp) -> Option<Prop> {
+    pub fn parse_standard_prop(
+        &self,
+        node: &RawNode,
+        standard_prop: StandardProperty,
+    ) -> Option<RawProp<'_>> {
         self.prop_iter(&node).find(|prop| {
             prop.name()
                 .try_into()
-                .is_ok_and(|x: StandardProp| x == standard_prop)
+                .is_ok_and(|x: StandardProperty| x == standard_prop)
         })
     }
 
@@ -197,7 +203,7 @@ impl Fdt {
         let mut stdout_path: Option<&str> = None;
         let mut stdin_path: Option<&str> = None;
 
-        fn extract_and_set_path(prop: &Prop, dest: &mut Option<&str>) {
+        fn extract_and_set_path<'a>(prop: &RawProp<'a>, dest: &mut Option<&'a str>) {
             if let Some(path) = prop.value_as_string().ok() {
                 let path = match path.split_once(':') {
                     Some((p, _)) => p,
@@ -211,16 +217,16 @@ impl Fdt {
         if let Some(chosen_node) = self.chosen_node() {
             for prop in self.prop_iter(&chosen_node) {
                 match prop.name() {
-                    "bootargs" => {
+                    CHOSEN_BOOTARGS => {
                         if let Some(value) = prop.value_as_string().ok() {
                             bootargs.replace(value);
                         }
                     }
                     // ends_with to support legacy names
-                    x if x.ends_with("stdout-path") => {
+                    x if x.ends_with(CHOSEN_STDOUT_PATH) => {
                         extract_and_set_path(&prop, &mut stdout_path)
                     }
-                    "stdin-path" => extract_and_set_path(&prop, &mut stdin_path),
+                    CHOSEN_STDIN_PATH => extract_and_set_path(&prop, &mut stdin_path),
                     _ => continue,
                 }
             }
@@ -238,7 +244,9 @@ impl Fdt {
                 .and_then(|s| usize::from_str_radix(s, 16).ok())
                 .unwrap_or_else(|| {
                     assert!(node_index > 0);
-                    let prop = self.parse_standard_prop(node, StandardProp::Reg).unwrap();
+                    let prop = self
+                        .parse_standard_prop(node, StandardProperty::Reg)
+                        .unwrap();
                     let (address_cells, size_cells) =
                         self.parse_address_and_size_cells(path[node_index - 1].as_ref().unwrap());
                     let (unit_address, _size) = prop
@@ -252,7 +260,8 @@ impl Fdt {
             // walk up the path and translate the address if necessary (using ranges property)
             for index in (0..node_index).rev() {
                 let ancestor = path[index].as_ref().unwrap();
-                if let Some(ranges_prop) = self.parse_standard_prop(ancestor, StandardProp::Ranges)
+                if let Some(ranges_prop) =
+                    self.parse_standard_prop(ancestor, StandardProperty::Ranges)
                 {
                     let (address_cells, size_cells) = self.parse_address_and_size_cells(ancestor);
                     let parent_address_cells = {
@@ -283,18 +292,18 @@ impl Fdt {
         None
     }
 
-    pub fn parse_address_and_size_cells(&self, node: &Node) -> (u32, u32) {
+    pub fn parse_address_and_size_cells(&self, node: &RawNode) -> (u32, u32) {
         // SAFETY: DT-Spec v0.4, 2.3.5 #address-cells and #size-cells
         // #address-cells: defaults to 2
         // #size-cells: defaults to 1
         let mut address_cells: u32 = 2;
         let mut size_cells: u32 = 1;
 
-        if let Some(prop) = self.parse_standard_prop(node, StandardProp::AddressCells) {
+        if let Some(prop) = self.parse_standard_prop(node, StandardProperty::AddressCells) {
             address_cells = prop.value_as_u32().unwrap()
         }
 
-        if let Some(prop) = self.parse_standard_prop(node, StandardProp::SizeCells) {
+        if let Some(prop) = self.parse_standard_prop(node, StandardProperty::SizeCells) {
             size_cells = prop.value_as_u32().unwrap()
         }
 
@@ -320,7 +329,7 @@ impl Fdt {
 
             let standard_prop = standard_prop.unwrap();
             match standard_prop {
-                StandardProp::Reg => {
+                StandardProperty::Reg => {
                     for (address, size) in prop.value_as_prop_encoded_array_cells_pair_iter(
                         root_address_cells,
                         root_size_cells,
@@ -378,7 +387,7 @@ impl Fdt {
 
                 let standard_prop = standard_prop?;
                 match standard_prop {
-                    StandardProp::Ranges => {
+                    StandardProperty::Ranges => {
                         // address translation not supported
                         unimplemented!()
                     }
@@ -386,7 +395,6 @@ impl Fdt {
                 }
             }
 
-            let mut size_dynamic = 0;
             for child_prop in self
                 .child_iter(&reserved_memory_node)
                 .flat_map(|node| self.prop_iter(&node))
@@ -396,7 +404,7 @@ impl Fdt {
                 }
 
                 match child_prop.name() {
-                    val if val == Into::<&str>::into(StandardProp::Reg) => {
+                    val if val == Into::<&str>::into(StandardProperty::Reg) => {
                         for (address, size) in child_prop
                             .value_as_prop_encoded_array_cells_pair_iter(address_cells, size_cells)
                         {
@@ -406,11 +414,6 @@ impl Fdt {
 
                             result[index] = (address, size);
                             index += 1;
-                        }
-                    }
-                    "size" => {
-                        for size in child_prop.value_as_prop_encoded_array_cells_iter(size_cells) {
-                            size_dynamic += size;
                         }
                     }
                     _ => {

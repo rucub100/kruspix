@@ -4,8 +4,19 @@ use alloc::vec::Vec;
 use core::iter;
 use core::ptr::NonNull;
 
-use super::prop::{Property, PropertyValue, StandardProperty};
-use super::standard_properties::StandardProperties;
+use super::prop::{Property, PropertyValue};
+use super::std_prop::{ADDRESS_CELLS, AddressCellsValue, COMPATIBLE, CompatibleValue, MODEL, PHANDLE, PHandleValue, SIZE_CELLS, STATUS, SizeCellsValue, StandardProperties, StandardProperty, StatusValue, RegValue, RangesValue, DmaRangesValue, DMA_COHERENT, DMA_NONCOHERENT};
+
+// Base Device Node Types
+pub const ROOT: &'static str = "";
+pub const ALIASES: &'static str = "aliases";
+pub const MEMORY: &'static str = "memory";
+pub const RESERVED_MEMORY: &'static str = "reserved-memory";
+pub const CHOSEN: &'static str = "chosen";
+pub const CHOSEN_BOOTARGS: &'static str = "bootargs";
+pub const CHOSEN_STDOUT_PATH: &'static str = "stdout-path";
+pub const CHOSEN_STDIN_PATH: &'static str = "stdin-path";
+pub const CPUS: &'static str = "cpus";
 
 pub struct Node {
     name: String,
@@ -109,75 +120,75 @@ impl Node {
 }
 
 impl StandardProperties for Node {
-    fn compatible(&self) -> Option<&Vec<String>> {
+    fn compatible(&self) -> Option<&CompatibleValue> {
         self.properties
             .iter()
-            .find(|p| p.name() == StandardProperty::COMPATIBLE)
+            .find(|p| p.name() == COMPATIBLE)
             .and_then(|p| match &p.value() {
                 PropertyValue::Standard(StandardProperty::Compatible(compatible_list)) => {
                     Some(compatible_list)
                 }
-                _ => None,
+                _ => unreachable!(),
             })
     }
 
     fn model(&self) -> Option<&str> {
         self.properties
             .iter()
-            .find(|p| p.name() == StandardProperty::MODEL)
+            .find(|p| p.name() == MODEL)
             .and_then(|p| match p.value() {
                 PropertyValue::Standard(StandardProperty::Model(model)) => Some(model.as_str()),
-                _ => None,
+                _ => unreachable!(),
             })
     }
 
-    fn p_handle(&self) -> Option<u32> {
+    fn phandle(&self) -> Option<&PHandleValue> {
         self.properties
             .iter()
-            .find(|p| p.name() == StandardProperty::P_HANDLE)
+            .find(|p| p.name() == PHANDLE)
             .and_then(|p| match p.value() {
-                PropertyValue::Standard(StandardProperty::PHandle(p_handle)) => Some(*p_handle),
-                _ => None,
+                PropertyValue::Standard(StandardProperty::PHandle(phandle)) => Some(phandle),
+                _ => unreachable!(),
             })
     }
 
-    fn status(&self) -> Option<&str> {
+    fn status(&self) -> Option<&StatusValue> {
         self.properties
             .iter()
-            .find(|p| p.name() == StandardProperty::STATUS)
+            .find(|p| p.name() == STATUS)
             .and_then(|p| match p.value() {
-                PropertyValue::Standard(StandardProperty::Status(status)) => Some(status.as_str()),
-                _ => None,
+                PropertyValue::Standard(StandardProperty::Status(status)) => Some(status),
+                _ => unreachable!(),
             })
     }
 
-    fn address_cells(&self) -> u32 {
+    fn address_cells(&self) -> AddressCellsValue {
         self.properties
             .iter()
-            .find(|p| p.name() == StandardProperty::ADDRESS_CELLS)
+            .find(|p| p.name() == ADDRESS_CELLS)
             .and_then(|p| match p.value() {
                 PropertyValue::Standard(StandardProperty::AddressCells(addr_cells)) => {
                     Some(*addr_cells)
                 }
-                _ => None,
+                _ => unreachable!(),
             })
-            .unwrap_or(2)
+            .unwrap_or_default()
     }
 
-    fn size_cells(&self) -> u32 {
+    fn size_cells(&self) -> SizeCellsValue {
         self.properties
             .iter()
-            .find(|p| p.name() == StandardProperty::SIZE_CELLS)
+            .find(|p| p.name() == SIZE_CELLS)
             .and_then(|p| match p.value() {
                 PropertyValue::Standard(StandardProperty::SizeCells(size_cells)) => {
                     Some(*size_cells)
                 }
-                _ => None,
+                _ => unreachable!(),
             })
-            .unwrap_or(1)
+            .unwrap_or_default()
     }
 
-    fn reg(&self) -> Option<Vec<(&[u32], &[u32])>> {
+    fn reg(&self) -> Option<&RegValue> {
         todo!()
     }
 
@@ -185,23 +196,23 @@ impl StandardProperties for Node {
         todo!()
     }
 
-    fn ranges(&self) -> Option<Vec<(&[u32], &[u32], &[u32])>> {
+    fn ranges(&self) -> Option<&RangesValue> {
         todo!()
     }
 
-    fn dma_ranges(&self) -> Option<Vec<(&[u32], &[u32], &[u32])>> {
+    fn dma_ranges(&self) -> Option<&DmaRangesValue> {
         todo!()
     }
 
     fn dma_coherent(&self) -> bool {
         self.properties
             .iter()
-            .any(|p| p.name() == StandardProperty::DMA_COHERENT)
+            .any(|p| p.name() == DMA_COHERENT)
     }
 
     fn dma_noncoherent(&self) -> bool {
         self.properties
             .iter()
-            .any(|p| p.name() == StandardProperty::DMA_NONCOHERENT)
+            .any(|p| p.name() == DMA_NONCOHERENT)
     }
 }

@@ -1,4 +1,4 @@
-use crate::kernel::devicetree::fdt::prop::StandardProp;
+use crate::kernel::devicetree::fdt::raw_prop::StandardProperty;
 use crate::kernel::{
     devicetree::{fdt::Fdt, set_fdt},
     kernel_addr_size, kernel_bss_size,
@@ -58,10 +58,10 @@ fn parse_parameters(fdt: &Fdt) {
     if let Some(stdout_path) = stdout_path
         && !stdout_path.is_empty()
         && let Some(node) = fdt.get_node_by_path(stdout_path)
-        && let Some(compatible_list) = fdt.parse_standard_prop(&node, StandardProp::Compatible)
+        && let Some(compatible_list) = fdt.parse_standard_prop(&node, StandardProperty::Compatible)
     {
         // validate 'status' property
-        if let Some(status) = fdt.parse_standard_prop(&node, StandardProp::Status)
+        if let Some(status) = fdt.parse_standard_prop(&node, StandardProperty::Status)
             && let Some(value) = status.value_as_string().ok()
             && value != "okay"
         {
@@ -71,7 +71,6 @@ fn parse_parameters(fdt: &Fdt) {
         for compatible in compatible_list
             .value_as_string_list_iter()
             .filter_map(|s| s.ok())
-            .filter_map(|s| s.to_str().ok())
         {
             let stdout_compatible_driver = crate::drivers::PLATFORM_DRIVERS
                 .iter()
