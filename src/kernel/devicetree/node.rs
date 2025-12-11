@@ -10,7 +10,8 @@ use super::interrupts::{InterruptController, InterruptGeneratingDevice, Interrup
 use super::prop::{Property, PropertyValue};
 use super::std_prop::StandardProperties;
 use super::std_prop::{
-    ADDRESS_CELLS, COMPATIBLE, DMA_COHERENT, DMA_NONCOHERENT, MODEL, PHANDLE, SIZE_CELLS, STATUS,
+    ADDRESS_CELLS, COMPATIBLE, DMA_COHERENT, DMA_NONCOHERENT, DMA_RANGES, MODEL, PHANDLE, RANGES,
+    REG, SIZE_CELLS, STATUS, VIRTUAL_REG,
 };
 use super::std_prop::{
     AddressCellsValue, CompatibleValue, DmaRangesValue, RangesValue, RegValue, SizeCellsValue,
@@ -199,19 +200,45 @@ impl StandardProperties for Node {
     }
 
     fn reg(&self) -> Option<&RegValue> {
-        todo!()
+        self.properties
+            .iter()
+            .find(|p| p.name() == REG)
+            .and_then(|p| match p.value() {
+                PropertyValue::Standard(StandardProperty::Reg(reg)) => Some(reg),
+                _ => unreachable!(),
+            })
     }
 
     fn virtual_reg(&self) -> Option<u32> {
-        todo!()
+        self.properties
+            .iter()
+            .find(|p| p.name() == VIRTUAL_REG)
+            .and_then(|p| match p.value() {
+                PropertyValue::Standard(StandardProperty::VirtualReg(virt_reg)) => Some(*virt_reg),
+                _ => unreachable!(),
+            })
     }
 
     fn ranges(&self) -> Option<&RangesValue> {
-        todo!()
+        self.properties
+            .iter()
+            .find(|p| p.name() == RANGES)
+            .and_then(|p| match p.value() {
+                PropertyValue::Standard(StandardProperty::Ranges(ranges)) => Some(ranges),
+                _ => unreachable!(),
+            })
     }
 
     fn dma_ranges(&self) -> Option<&DmaRangesValue> {
-        todo!()
+        self.properties
+            .iter()
+            .find(|p| p.name() == DMA_RANGES)
+            .and_then(|p| match p.value() {
+                PropertyValue::Standard(StandardProperty::DmaRanges(dma_ranges)) => {
+                    Some(dma_ranges)
+                }
+                _ => unreachable!(),
+            })
     }
 
     fn dma_coherent(&self) -> bool {
