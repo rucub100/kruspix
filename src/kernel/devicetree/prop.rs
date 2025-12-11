@@ -1,9 +1,14 @@
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
+use super::PHandle;
 use super::fdt::raw_prop::RawProp;
 use super::node::Node;
-use super::std_prop::{ADDRESS_CELLS, AddressCellsValue, COMPATIBLE, DMA_COHERENT, DMA_NONCOHERENT, DMA_RANGES, MODEL, PHANDLE, PHandleValue, RANGES, REG, RangesItemValue, RegItemValue, SIZE_CELLS, STATUS, SizeCellsValue, StandardProperties, StandardProperty, VIRTUAL_REG, DmaRangesItemValue};
+use super::std_prop::{
+    ADDRESS_CELLS, AddressCellsValue, COMPATIBLE, DMA_COHERENT, DMA_NONCOHERENT, DMA_RANGES,
+    DmaRangesItemValue, MODEL, PHANDLE, RANGES, REG, RangesItemValue, RegItemValue, SIZE_CELLS,
+    STATUS, SizeCellsValue, StandardProperties, StandardProperty, VIRTUAL_REG,
+};
 
 #[derive(Debug)]
 pub struct Property {
@@ -24,7 +29,7 @@ impl Property {
             MODEL => PropertyValue::Standard(StandardProperty::Model(
                 prop.value_as_string().unwrap().to_string(),
             )),
-            PHANDLE => PropertyValue::Standard(StandardProperty::PHandle(PHandleValue(
+            PHANDLE => PropertyValue::Standard(StandardProperty::PHandle(PHandle(
                 prop.value_as_u32().unwrap(),
             ))),
             STATUS => PropertyValue::Standard(StandardProperty::Status(

@@ -135,3 +135,7 @@ impl TryFrom<&Fdt> for DeviceTree {
         Err(())
     }
 }
+
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct PHandle(pub u32);

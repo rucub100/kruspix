@@ -1,9 +1,11 @@
 use alloc::vec::Vec;
 
+use super::PHandle;
+
 pub trait InterruptGeneratingDevice {
-    fn interrupts(&self) -> Option<Vec<&[u8]>>;
-    fn interrupts_extended(&self) -> Option<Vec<(&Self, &[u8])>>;
-    fn interrupt_parent(&self) -> Option<&Self>;
+    fn interrupts(&self) -> Option<&Interrupts>;
+    fn interrupts_extended(&self) -> Option<&ExtendedInterrupts>;
+    fn interrupt_parent(&self) -> Option<&PHandle>;
 }
 
 pub trait InterruptController {
@@ -12,8 +14,25 @@ pub trait InterruptController {
 }
 
 pub trait InterruptNexus {
-    // TODO: define methods for interrupt nexus
-    // interrupt-map, interrupt-map-mask, interrupt-cells
+    fn interrupt_cells(&self) -> u32;
+    fn interrupt_map(&self) -> Option<&InterruptMap>;
+    fn interrupt_map_mask(&self) -> Option<&InterruptMapMask>;
 }
 
-// TODO: reason about how to describe generic nexus nodes
+pub type Interrupts = Vec<InterruptSpecifier>;
+
+#[repr(transparent)]
+pub struct InterruptSpecifier(pub Vec<u32>);
+
+pub type ExtendedInterrupts = Vec<(PHandle, InterruptSpecifier)>;
+
+pub struct InterruptMap {
+    child_unit_addr: Vec<u32>,
+    child_interrupt_specifier: InterruptSpecifier,
+    interrupt_parent: PHandle,
+    parent_unit_addr: Vec<u32>,
+    parent_interrupt_specifier: InterruptSpecifier,
+}
+
+#[repr(transparent)]
+pub struct InterruptMapMask(pub Vec<u32>);

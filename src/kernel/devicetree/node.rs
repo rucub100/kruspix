@@ -4,8 +4,18 @@ use alloc::vec::Vec;
 use core::iter;
 use core::ptr::NonNull;
 
+use super::PHandle;
+use super::interrupts::{ExtendedInterrupts, InterruptMap, InterruptMapMask, Interrupts};
+use super::interrupts::{InterruptController, InterruptGeneratingDevice, InterruptNexus};
 use super::prop::{Property, PropertyValue};
-use super::std_prop::{ADDRESS_CELLS, AddressCellsValue, COMPATIBLE, CompatibleValue, MODEL, PHANDLE, PHandleValue, SIZE_CELLS, STATUS, SizeCellsValue, StandardProperties, StandardProperty, StatusValue, RegValue, RangesValue, DmaRangesValue, DMA_COHERENT, DMA_NONCOHERENT};
+use super::std_prop::StandardProperties;
+use super::std_prop::{
+    ADDRESS_CELLS, COMPATIBLE, DMA_COHERENT, DMA_NONCOHERENT, MODEL, PHANDLE, SIZE_CELLS, STATUS,
+};
+use super::std_prop::{
+    AddressCellsValue, CompatibleValue, DmaRangesValue, RangesValue, RegValue, SizeCellsValue,
+    StandardProperty, StatusValue,
+};
 
 // Base Device Node Types
 pub const ROOT: &'static str = "";
@@ -142,7 +152,7 @@ impl StandardProperties for Node {
             })
     }
 
-    fn phandle(&self) -> Option<&PHandleValue> {
+    fn phandle(&self) -> Option<&PHandle> {
         self.properties
             .iter()
             .find(|p| p.name() == PHANDLE)
@@ -205,14 +215,46 @@ impl StandardProperties for Node {
     }
 
     fn dma_coherent(&self) -> bool {
-        self.properties
-            .iter()
-            .any(|p| p.name() == DMA_COHERENT)
+        self.properties.iter().any(|p| p.name() == DMA_COHERENT)
     }
 
     fn dma_noncoherent(&self) -> bool {
-        self.properties
-            .iter()
-            .any(|p| p.name() == DMA_NONCOHERENT)
+        self.properties.iter().any(|p| p.name() == DMA_NONCOHERENT)
+    }
+}
+
+impl InterruptGeneratingDevice for Node {
+    fn interrupts(&self) -> Option<&Interrupts> {
+        todo!()
+    }
+
+    fn interrupts_extended(&self) -> Option<&ExtendedInterrupts> {
+        todo!()
+    }
+
+    fn interrupt_parent(&self) -> Option<&PHandle> {
+        todo!()
+    }
+}
+impl InterruptController for Node {
+    fn interrupt_cells(&self) -> u32 {
+        todo!()
+    }
+
+    fn is_interrupt_controller(&self) -> bool {
+        todo!()
+    }
+}
+impl InterruptNexus for Node {
+    fn interrupt_cells(&self) -> u32 {
+        todo!()
+    }
+
+    fn interrupt_map(&self) -> Option<&InterruptMap> {
+        todo!()
+    }
+
+    fn interrupt_map_mask(&self) -> Option<&InterruptMapMask> {
+        todo!()
     }
 }

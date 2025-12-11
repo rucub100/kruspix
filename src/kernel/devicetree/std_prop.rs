@@ -1,6 +1,8 @@
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
+use super::PHandle;
+
 pub const COMPATIBLE: &'static str = "compatible";
 pub const MODEL: &'static str = "model";
 pub const PHANDLE: &'static str = "phandle";
@@ -17,7 +19,7 @@ pub const DMA_NONCOHERENT: &'static str = "dma-noncoherent";
 pub trait StandardProperties {
     fn compatible(&self) -> Option<&CompatibleValue>;
     fn model(&self) -> Option<&str>;
-    fn phandle(&self) -> Option<&PHandleValue>;
+    fn phandle(&self) -> Option<&PHandle>;
     fn status(&self) -> Option<&StatusValue>;
     fn address_cells(&self) -> AddressCellsValue;
     fn size_cells(&self) -> SizeCellsValue;
@@ -52,10 +54,6 @@ impl TryInto<StatusValue> for &str {
         }
     }
 }
-
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct PHandleValue(pub u32);
 
 #[derive(Debug, Copy, Clone)]
 #[repr(transparent)]
@@ -134,7 +132,7 @@ impl DmaRangesItemValue {
 pub enum StandardProperty {
     Compatible(CompatibleValue),
     Model(String),
-    PHandle(PHandleValue),
+    PHandle(PHandle),
     Status(StatusValue),
     AddressCells(AddressCellsValue),
     SizeCells(SizeCellsValue),
