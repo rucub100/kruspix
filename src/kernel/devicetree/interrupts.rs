@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use core::iter;
 
 use super::PHandle;
 
@@ -27,21 +28,64 @@ pub trait InterruptNexus {
     fn interrupt_map_mask(&self) -> Option<&InterruptMapMask>;
 }
 
-pub type Interrupts = Vec<InterruptSpecifier>;
+#[derive(Debug)]
+pub struct Interrupts {
+    raw_data: Vec<u32>,
+}
+
+impl Interrupts {
+    pub fn from_raw(data: Vec<u32>) -> Self {
+        Self { raw_data: data }
+    }
+
+    pub fn iter(&self, interrupt_cells: usize) -> impl Iterator<Item = InterruptSpecifier> {
+        assert!(interrupt_cells > 0);
+
+        self.raw_data
+            .chunks_exact(interrupt_cells)
+            .map(|chunk| InterruptSpecifier(chunk.to_vec()))
+    }
+}
 
 #[derive(Debug)]
 #[repr(transparent)]
 pub struct InterruptSpecifier(pub Vec<u32>);
 
-pub type ExtendedInterrupts = Vec<(PHandle, InterruptSpecifier)>;
-
 #[derive(Debug)]
-pub struct InterruptMap {
+pub struct ExtendedInterrupts {
+    raw_data: Vec<u32>,
+}
+
+type ExtendedSpecifier = (PHandle, InterruptSpecifier);
+
+impl ExtendedInterrupts {
+    pub fn from_raw(data: Vec<u32>) -> Self {
+        Self { raw_data: data }
+    }
+
+    pub fn iter(&self, _interrupt_cells: &[usize]) -> impl Iterator<Item = ExtendedSpecifier> {
+        todo!();
+        iter::empty()
+    }
+}
+
+pub struct InterruptMapEntry {
     child_unit_addr: Vec<u32>,
     child_interrupt_specifier: InterruptSpecifier,
     interrupt_parent: PHandle,
     parent_unit_addr: Vec<u32>,
     parent_interrupt_specifier: InterruptSpecifier,
+}
+
+#[derive(Debug)]
+pub struct InterruptMap {
+    raw_data: Vec<u32>,
+}
+
+impl InterruptMap {
+    pub fn from_raw(data: Vec<u32>) -> Self {
+        Self { raw_data: data }
+    }
 }
 
 #[derive(Debug)]

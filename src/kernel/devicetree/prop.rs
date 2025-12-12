@@ -4,7 +4,11 @@ use core::ffi::CStr;
 
 use super::PHandle;
 use super::fdt::raw_prop::RawProp;
-use super::interrupts::InterruptsProperty;
+use super::interrupts::{
+    ExtendedInterrupts, INTERRUPT_CELLS, INTERRUPT_CONTROLLER, INTERRUPT_MAP, INTERRUPT_MAP_MASK,
+    INTERRUPT_PARENT, INTERRUPTS, INTERRUPTS_EXTENDED, InterruptGeneratingDevice, InterruptMap,
+    InterruptMapMask, Interrupts, InterruptsProperty,
+};
 use super::node::Node;
 use super::std_prop::{
     ADDRESS_CELLS, AddressCellsValue, COMPATIBLE, DMA_COHERENT, DMA_NONCOHERENT, DMA_RANGES,
@@ -129,19 +133,48 @@ impl Property {
             })),
             DMA_COHERENT => PropertyValue::Standard(StandardProperty::DmaCoherent),
             DMA_NONCOHERENT => PropertyValue::Standard(StandardProperty::DmaNoncoherent),
-            // TODO: Interrupt Properties
-            // INTERRUPTS => todo!(),
-            // INTERRUPTS_EXTENDED => todo!(),
-            // INTERRUPT_PARENT => todo!(),
-            // INTERRUPT_CELLS => todo!(),
-            // INTERRUPT_CONTROLLER => todo!(),
-            // INTERRUPT_MAP => todo!(),
-            // INTERRUPT_MAP_MASK => todo!(),
-            // TODO?: Nexus Node Properties (MaybeNexusProperty)
-            // x if x.ends_with("-map") => todo!(),
-            // x if x.ends_with("-map-mask") => todo!(),
-            // x if x.ends_with("-map-pass-thru") => todo!(),
-            // x if x.starts_with("#") && x.ends_with("-cells") => todo!(),
+            // Interrupt Properties
+            INTERRUPTS => {
+                PropertyValue::Interrupts(InterruptsProperty::Interrupts(Interrupts::from_raw(
+                    prop.value()
+                        .chunks_exact(4)
+                        .map(|b| u32::from_be_bytes(b.try_into().unwrap()))
+                        .collect(),
+                )))
+            }
+            INTERRUPTS_EXTENDED => PropertyValue::Interrupts(
+                InterruptsProperty::ExtendedInterrupts(ExtendedInterrupts::from_raw(
+                    prop.value()
+                        .chunks_exact(4)
+                        .map(|b| u32::from_be_bytes(b.try_into().unwrap()))
+                        .collect(),
+                )),
+            ),
+            INTERRUPT_PARENT => PropertyValue::Interrupts(InterruptsProperty::InterruptParent(
+                PHandle(prop.value_as_phandle().unwrap()),
+            )),
+            INTERRUPT_CELLS => PropertyValue::Interrupts(InterruptsProperty::InterruptCells(
+                prop.value_as_u32().unwrap(),
+            )),
+            INTERRUPT_CONTROLLER => {
+                PropertyValue::Interrupts(InterruptsProperty::InterruptController)
+            }
+            INTERRUPT_MAP => {
+                PropertyValue::Interrupts(InterruptsProperty::InterruptMap(InterruptMap::from_raw(
+                    prop.value()
+                        .chunks_exact(4)
+                        .map(|b| u32::from_be_bytes(b.try_into().unwrap()))
+                        .collect(),
+                )))
+            }
+            INTERRUPT_MAP_MASK => {
+                PropertyValue::Interrupts(InterruptsProperty::InterruptMapMask(InterruptMapMask(
+                    prop.value()
+                        .chunks_exact(4)
+                        .map(|b| u32::from_be_bytes(b.try_into().unwrap()))
+                        .collect(),
+                )))
+            }
             // Fallbacks
             _ if prop.value().is_empty() => PropertyValue::Empty,
             _ => PropertyValue::Unknown(UnknownProperty(prop.value().to_vec())),
