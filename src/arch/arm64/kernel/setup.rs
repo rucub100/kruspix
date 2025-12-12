@@ -1,8 +1,6 @@
 use crate::kernel::devicetree::fdt::raw_prop::StandardProperty;
-use crate::kernel::{
-    devicetree::{fdt::Fdt, set_fdt},
-    kernel_addr_size, kernel_bss_size,
-};
+use crate::kernel::devicetree::register_fdt_addr;
+use crate::kernel::{devicetree::fdt::Fdt, kernel_addr_size, kernel_bss_size};
 use crate::kprintln;
 use crate::mm::init_phys_mem;
 
@@ -13,8 +11,9 @@ use crate::mm::init_phys_mem;
 #[unsafe(no_mangle)]
 pub fn setup_arch() {
     let fdt_addr = get_fdt_addr();
-    let fdt = Fdt::new(fdt_addr).unwrap();
+    let fdt = unsafe { Fdt::new(fdt_addr).unwrap() };
 
+    register_fdt_addr(fdt_addr);
     parse_parameters(&fdt);
 
     kprintln!("FDT address: {:#x}", fdt_addr);
@@ -30,8 +29,6 @@ pub fn setup_arch() {
 
     kprintln!("Parsing Flattened Device Tree (FDT)...");
     let (mem, reserved_mem) = parse_memory(&fdt).unwrap();
-
-    set_fdt(fdt);
 
     kprintln!("Initializing physical memory...");
     init_phys_mem(mem, reserved_mem, (kernel_addr, kernel_size), fdt_addr);

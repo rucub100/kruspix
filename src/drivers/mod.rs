@@ -46,7 +46,7 @@ pub fn init_platform_drivers() {
     // FIXME: split the logic into two phases:
     // 1. discover and store devices in the kernel as device objects
     // 2. initialize drivers for the devices
-    let dt = get_devicetree();
+    let dt = get_devicetree().expect("Failed to get devicetree");
     let root = dt.root();
     assert!(dt.version() >= 17);
     assert_eq!(dt.last_compatible_version(), 16);

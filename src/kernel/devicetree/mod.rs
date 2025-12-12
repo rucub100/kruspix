@@ -1,35 +1,45 @@
 use alloc::boxed::Box;
 use alloc::string::ToString;
+use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::ptr::NonNull;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::kernel::sync::spinlock::SpinLock;
+use crate::kernel::devicetree::prop::Property;
+use crate::kernel::sync::OnceLock;
 
 use fdt::{Fdt, fdt_structure_block::StructureBlockEntryKind};
 use node::Node;
-use crate::kernel::devicetree::prop::Property;
 
 pub mod fdt;
+pub mod interrupts;
 pub mod node;
 pub mod prop;
 pub mod std_prop;
-pub mod interrupts;
 
-static FDT: SpinLock<Option<Fdt>> = SpinLock::new(None);
+static FDT_ADDR: AtomicUsize = AtomicUsize::new(0);
+static DEVICE_TREE: OnceLock<Arc<DeviceTree>> = OnceLock::new();
 
-pub fn set_fdt(fdt: Fdt) {
-    FDT.lock().replace(fdt);
+pub fn register_fdt_addr(addr: usize) {
+    FDT_ADDR
+        .compare_exchange(0, addr, Ordering::SeqCst, Ordering::SeqCst)
+        .unwrap();
 }
 
-pub fn get_devicetree() -> DeviceTree {
-    let fdt = FDT.lock();
-    match fdt.as_ref() {
-        None => panic!("FDT not set"),
-        Some(fdt) => fdt.try_into().expect("Cannot convert FDT to DeviceTree"),
-    }
+pub fn init_devicetree() {
+    let fdt = unsafe { Fdt::new(FDT_ADDR.load(Ordering::Relaxed)).expect("Failed to parse FDT") };
+    let device_tree = DeviceTree::from_fdt(&fdt).expect("Failed to convert FDT to DeviceTree");
+    DEVICE_TREE
+        .set(Arc::new(device_tree))
+        .expect("DeviceTree already initialized");
 }
 
+pub fn get_devicetree() -> Option<Arc<DeviceTree>> {
+    DEVICE_TREE.get().cloned()
+}
+
+#[derive(Debug)]
 pub struct DeviceTree {
     address: usize,
     size: u32,
@@ -41,38 +51,7 @@ pub struct DeviceTree {
 }
 
 impl DeviceTree {
-    pub fn addr(&self) -> usize {
-        self.address
-    }
-
-    pub fn size(&self) -> u32 {
-        self.size
-    }
-
-    pub fn version(&self) -> u32 {
-        self.version
-    }
-
-    pub fn last_compatible_version(&self) -> u32 {
-        self.last_comp_version
-    }
-
-    pub fn boot_cpuid_phys(&self) -> u32 {
-        self.boot_cpuid_phys
-    }
-
-    pub fn memory_reservations(&self) -> &Vec<(usize, usize)> {
-        &self.memory_reservations
-    }
-
-    pub fn root(&self) -> &Node {
-        &self.root
-    }
-}
-
-impl TryFrom<&Fdt> for DeviceTree {
-    type Error = ();
-    fn try_from(fdt: &Fdt) -> Result<Self, Self::Error> {
+    fn from_fdt(fdt: &Fdt) -> Result<Self, ()> {
         let address = fdt.address();
         let size = fdt.size();
         let version = fdt.version();
@@ -83,8 +62,6 @@ impl TryFrom<&Fdt> for DeviceTree {
             .map(|r| (r.address() as usize, r.size() as usize))
             .collect();
 
-        // TODO: refactor the concept to a builder pattern to avoid
-        // node.properties_mut() and node.children_mut()
         let mut nodes_stack: Vec<Box<Node>> = vec![];
 
         // SAFETY: from the DTSpec we know this is a depth-first traversal
@@ -133,6 +110,34 @@ impl TryFrom<&Fdt> for DeviceTree {
         }
 
         Err(())
+    }
+
+    pub fn addr(&self) -> usize {
+        self.address
+    }
+
+    pub fn size(&self) -> u32 {
+        self.size
+    }
+
+    pub fn version(&self) -> u32 {
+        self.version
+    }
+
+    pub fn last_compatible_version(&self) -> u32 {
+        self.last_comp_version
+    }
+
+    pub fn boot_cpuid_phys(&self) -> u32 {
+        self.boot_cpuid_phys
+    }
+
+    pub fn memory_reservations(&self) -> &Vec<(usize, usize)> {
+        &self.memory_reservations
+    }
+
+    pub fn root(&self) -> &Node {
+        &self.root
     }
 }
 

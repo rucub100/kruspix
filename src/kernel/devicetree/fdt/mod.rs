@@ -26,7 +26,9 @@ unsafe impl Send for Fdt {}
 unsafe impl Sync for Fdt {}
 
 impl Fdt {
-    pub fn new(address: usize) -> Result<Self, ()> {
+    /// # Safety
+    /// The caller must ensure that the address points to a valid FDT blob in memory.
+    pub unsafe fn new(address: usize) -> Result<Self, ()> {
         let fdt_header = FdtHeader::at_addr(address);
         if fdt_header.is_valid() {
             Ok(Fdt { fdt_header })

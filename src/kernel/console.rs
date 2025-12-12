@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::fmt::{Result, Write};
 
-use super::sync::spinlock::SpinLock;
+use super::sync::SpinLock;
 use crate::common::ring_array::RingArray;
 use crate::kprintln;
 

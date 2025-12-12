@@ -2,7 +2,7 @@ use core::alloc::Layout;
 use core::ptr;
 
 use crate::arch::mm::mmu::{PAGE_SIZE, map_page};
-use crate::kernel::sync::spinlock::SpinLock;
+use crate::kernel::sync::SpinLock;
 use crate::kprintln;
 
 use super::alloc_frame;

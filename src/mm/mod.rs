@@ -4,7 +4,7 @@ use core::ptr;
 use crate::arch::mm::mmu::PAGE_SIZE;
 use crate::kprintln;
 
-use crate::kernel::sync::spinlock::SpinLock;
+use crate::kernel::sync::SpinLock;
 use frame_allocator::{BitMapFrameAllocator, PageFrameAllocator};
 pub use heap_allocator::init_heap;
 use layout::LINEAR_MAP_OFFSET;

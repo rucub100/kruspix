@@ -3,6 +3,7 @@
 
 use kruspix::arch::{kernel::setup::setup_arch, mm::mmu::setup_page_tables};
 use kruspix::drivers::init_platform_drivers;
+use kruspix::kernel::devicetree::init_devicetree;
 use kruspix::mm::init_heap;
 use kruspix::{kprint, kprintln};
 
@@ -14,6 +15,7 @@ pub extern "C" fn start_kernel() -> ! {
     setup_arch();
     setup_page_tables();
     init_heap();
+    init_devicetree();
     init_platform_drivers();
 
     // TODO: memory management setup

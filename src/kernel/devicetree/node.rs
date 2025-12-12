@@ -33,6 +33,7 @@ pub const CHOSEN_STDOUT_PATH: &'static str = "stdout-path";
 pub const CHOSEN_STDIN_PATH: &'static str = "stdin-path";
 pub const CPUS: &'static str = "cpus";
 
+#[derive(Debug)]
 pub struct Node {
     name: String,
     properties: Vec<Property>,
@@ -106,7 +107,7 @@ impl Node {
         &self.properties
     }
 
-    pub fn properties_mut(&mut self) -> &mut Vec<Property> {
+    pub(crate) fn properties_mut(&mut self) -> &mut Vec<Property> {
         &mut self.properties
     }
 
@@ -114,7 +115,7 @@ impl Node {
         &self.children
     }
 
-    pub fn children_mut(&mut self) -> &mut Vec<Box<Node>> {
+    pub(crate) fn children_mut(&mut self) -> &mut Vec<Box<Node>> {
         &mut self.children
     }
 
@@ -345,3 +346,6 @@ impl InterruptNexus for Node {
             })
     }
 }
+
+unsafe impl Send for Node {}
+unsafe impl Sync for Node {}
