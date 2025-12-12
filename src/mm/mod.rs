@@ -37,7 +37,7 @@ pub fn init_phys_mem(
 
     kprintln!("Available physical memory regions:");
     for (addr, size) in available_mem.iter().filter(|(_, size)| *size > 0) {
-        kprintln!("- address: {:#x}, size: {:#x} bytes", addr, size);
+        kprintln!("-> address: {:#x}, size: {:#x} bytes", addr, size);
     }
 
     kprintln!("Reserved physical memory regions:");
@@ -52,7 +52,7 @@ pub fn init_phys_mem(
             _ => "(I/O PERIPHERALS)",
         };
 
-        kprintln!("- address: {:#x}, size: {:#x} bytes {}", addr, size, suffix);
+        kprintln!("-> address: {:#x}, size: {:#x} bytes {}", addr, size, suffix);
     }
 
     BOOT_PHYS_MEM_MANAGER.lock().replace(BootPhysMemManager {

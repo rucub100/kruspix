@@ -71,12 +71,7 @@ impl Node {
     pub fn is_root(&self) -> bool {
         self.parent.is_none()
     }
-
-    pub fn is_compatible_with(&self, compatible: &str) -> bool {
-        self.compatible()
-            .is_some_and(|compatible_list| compatible_list.iter().any(|c| c == compatible))
-    }
-
+    
     pub fn path(&self) -> String {
         let mut segments = Vec::with_capacity(16);
         let mut current = Some(self);

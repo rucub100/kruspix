@@ -1,9 +1,7 @@
+use alloc::vec::Vec;
+
 use crate::kernel::devicetree::{
-    fdt::Fdt,
-    get_devicetree,
-    node::Node,
-    prop::PropertyValue,
-    std_prop::{COMPATIBLE, StandardProperty},
+    fdt::Fdt, get_devicetree, node::Node, std_prop::StandardProperties,
 };
 use crate::kprintln;
 
@@ -23,15 +21,24 @@ mod usb;
 mod watchdog;
 mod wifi;
 
+#[derive(Debug, Copy, Clone)]
+pub enum DriverInitError {
+    Reserved,
+    Disabled,
+    Failed,
+    Retry,
+    ToDo,
+}
+
 pub trait PlatformDriver {
     /// Returns the compatible string that this driver supports.
     fn compatible(&self) -> &str;
 
     /// Driver's factory method to initialize a device instance from a device tree node.
-    fn init(&self, node: &Node);
+    fn try_init(&self, node: &Node) -> Result<(), DriverInitError>;
 
     /// Optional static initialization method, maybe called during early boot.
-    fn static_init(&'static self, _fdt: &Fdt, _path: &str) {
+    fn early_init(&'static self, _fdt: &Fdt, _path: &str) {
         // default implementation: do nothing
         // can be overridden by specific drivers to support static initialization
         // kernel may not call this method at all
@@ -41,47 +48,60 @@ pub trait PlatformDriver {
 pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[&serial::bcm2835_aux_uart::DRIVER];
 
 pub fn init_platform_drivers() {
-    kprintln!("Initializing drivers...");
+    kprintln!("Initializing platform drivers...");
 
-    // FIXME: split the logic into two phases:
-    // 1. discover and store devices in the kernel as device objects
-    // 2. initialize drivers for the devices
     let dt = get_devicetree().expect("Failed to get devicetree");
-    let root = dt.root();
-    assert!(dt.version() >= 17);
-    assert_eq!(dt.last_compatible_version(), 16);
-    assert!(root.is_root());
-    assert!(root.name().is_empty());
-    assert_eq!(root.path(), "/");
+    let mut uninitialized_device_nodes: Vec<&Node> = dt
+        .root()
+        .iter()
+        .filter(|node| node.compatible().is_some())
+        .collect();
 
     kprintln!("Match devices from Device Tree:");
-    root.iter().for_each(|node| {
-        match_driver(&node);
-    });
+    let mut progress = true;
+    while progress && !uninitialized_device_nodes.is_empty() {
+        progress = false;
+
+        uninitialized_device_nodes.retain(|node| {
+            if let Some(driver) = match_driver(node) {
+                kprintln!("-> MATCH");
+                return match driver.try_init(node) {
+                    Ok(_) => {
+                        kprintln!("-> Driver initialized successfully");
+                        progress = true;
+                        false
+                    }
+                    Err(DriverInitError::Retry) => {
+                        kprintln!("-> Driver failed to initialize (RETRY)");
+                        true
+                    }
+                    Err(_) => {
+                        kprintln!("-> Driver failed to initialize (SKIP)");
+                        false
+                    }
+                };
+            }
+
+            kprintln!("-> No matching driver found");
+            false
+        });
+    }
 }
 
-fn match_driver(node: &Node) {
-    let compatible_prop = node.properties().iter().find(|p| p.name() == COMPATIBLE);
+fn match_driver(node: &Node) -> Option<&dyn PlatformDriver> {
+    let compatible_list = node.compatible()?;
 
-    if let Some(compatible_prop) = compatible_prop {
-        if let PropertyValue::Standard(StandardProperty::Compatible(compatible_list)) =
-            compatible_prop.value()
-        {
-            kprintln!("Node {} compatible with {:?}", node.path(), compatible_list);
-            for compatible in compatible_list {
-                let driver = PLATFORM_DRIVERS
-                    .iter()
-                    .find(|d| d.compatible() == compatible);
+    kprintln!("Node {} compatible with {:?}", node.path(), compatible_list);
 
-                if let Some(driver) = driver {
-                    kprintln!("INFO: initializing driver...");
-                    driver.init(node);
-                    break;
-                }
-            }
-        } else {
-            kprintln!("WARNING: 'compatible' property has unexpected format");
-            return;
+    for compatible in compatible_list {
+        let driver = PLATFORM_DRIVERS
+            .iter()
+            .find(|d| d.compatible() == compatible);
+
+        if driver.is_some() {
+            return driver.copied();
         }
     }
+
+    None
 }

@@ -1,7 +1,7 @@
 use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::drivers::PlatformDriver;
+use crate::drivers::{DriverInitError, PlatformDriver};
 use crate::kernel::console::{Console, register_early_console};
 use crate::kernel::devicetree::{fdt::Fdt, node::Node};
 use crate::kprintln;
@@ -88,7 +88,7 @@ impl PlatformDriver for MiniUartDriver {
         "brcm,bcm2835-aux-uart"
     }
 
-    fn init(&self, node: &Node) {
+    fn try_init(&self, node: &Node) -> Result<(), DriverInitError> {
         // TODO:
         // 1. initialize the hardware
         // 2. we may have to map the MMIO region from the device tree node
@@ -97,11 +97,13 @@ impl PlatformDriver for MiniUartDriver {
         // so a global static variable is a bad idea
         // 1 driver <-> N devices
         for prop in node.properties() {
-            kprintln!("Property: {}", prop.name());
+            kprintln!("-> Property: {}", prop.name());
         }
+
+        Err(DriverInitError::ToDo)
     }
 
-    fn static_init(&'static self, fdt: &Fdt, path: &str) {
+    fn early_init(&'static self, fdt: &Fdt, path: &str) {
         if let Some(addr) = fdt.resolve_phys_addr(path) {
             if self
                 .reg_base

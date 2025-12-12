@@ -30,6 +30,10 @@ pub fn register_fdt_addr(addr: usize) {
 pub fn init_devicetree() {
     let fdt = unsafe { Fdt::new(FDT_ADDR.load(Ordering::Relaxed)).expect("Failed to parse FDT") };
     let device_tree = DeviceTree::from_fdt(&fdt).expect("Failed to convert FDT to DeviceTree");
+
+    assert!(device_tree.version() >= 17);
+    assert_eq!(device_tree.last_compatible_version(), 16);
+
     DEVICE_TREE
         .set(Arc::new(device_tree))
         .expect("DeviceTree already initialized");

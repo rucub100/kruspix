@@ -74,7 +74,7 @@ fn parse_parameters(fdt: &Fdt) {
                 .find(|d| d.compatible() == compatible);
 
             if let Some(driver) = stdout_compatible_driver {
-                driver.static_init(fdt, stdout_path);
+                driver.early_init(fdt, stdout_path);
                 break;
             }
         }
