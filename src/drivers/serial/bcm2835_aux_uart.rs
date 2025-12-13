@@ -91,11 +91,21 @@ impl PlatformDriver for MiniUartDriver {
     fn try_init(&self, node: &Node) -> Result<(), DriverInitError> {
         // TODO:
         // 1. initialize the hardware
-        // 2. we may have to map the MMIO region from the device tree node
-        // 3. register the UART as a console device (capability)
-        // FIXME: the driver has to be a factory for multiple instances of the device
-        // so a global static variable is a bad idea
-        // 1 driver <-> N devices
+        // 2. map the physical register address to IO PERIPHERAL space
+        // 3. register the MiniUartDevice instance as a console device (capability)
+
+        // TODO: more considerations:
+        // - analyze the device bindings (properties) and handle all of them
+        //   + reg => map physical address to IO PERIPHERAL space
+        //   + status => check if "okay"
+        //   + phandle => register the phandle for other devices to reference?! (this is not task of driver but rather of devicetree manager)
+        //   + skip-init => skip initialization if present (but still provide init functionality and test it)
+        //   + pinctrl-0 and pinctrl-names => figure what how to handle this (probably pin controller driver should handle this)
+        //   + clocks => request clock via subsystem and enable it
+        //   + interrupts => register handler for the interrupts for async operation without polling
+        // - this device driver seems to depend on other subsystems (clock, pin controller, interrupt controller)
+        //   therefore it is probably a good idea to start with the most essential dependencies first
+
         for prop in node.properties() {
             kprintln!("-> Property: {}", prop.name());
         }
