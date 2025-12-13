@@ -13,6 +13,7 @@ mod ethernet;
 mod interrupt_controller;
 mod mailbox;
 mod mmc;
+mod pinctrl;
 mod rng;
 mod serial;
 mod syscon;
