@@ -60,13 +60,7 @@ impl<'a> RawProp<'a> {
     }
 
     pub fn value_as_phandle(&self) -> Result<u32, ()> {
-        let bytes_count = &self.value.len() * 8;
-        if bytes_count != 32 {
-            return Err(());
-        }
-
-        let value_ptr = self.value.as_ptr() as *const u32;
-        unsafe { Ok(*value_ptr) }
+        self.value_as_u32()
     }
 
     pub fn value_as_string_list_iter(&self) -> StringListIter<'_> {

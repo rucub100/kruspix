@@ -11,21 +11,23 @@ pub const INTERRUPT_CONTROLLER: &'static str = "interrupt-controller";
 pub const INTERRUPT_MAP: &'static str = "interrupt-map";
 pub const INTERRUPT_MAP_MASK: &'static str = "interrupt-map-mask";
 
-pub trait InterruptGeneratingDevice {
+pub trait InterruptGeneratingNode {
     fn interrupts(&self) -> Option<&Interrupts>;
     fn interrupts_extended(&self) -> Option<&ExtendedInterrupts>;
     fn interrupt_parent(&self) -> Option<&PHandle>;
 }
 
-pub trait InterruptController {
-    fn interrupt_cells(&self) -> Option<u32>;
+pub trait InterruptControllerNode {
     fn is_interrupt_controller(&self) -> bool;
 }
 
-pub trait InterruptNexus {
-    fn interrupt_cells(&self) -> Option<u32>;
+pub trait InterruptNexusNode {
     fn interrupt_map(&self) -> Option<&InterruptMap>;
     fn interrupt_map_mask(&self) -> Option<&InterruptMapMask>;
+}
+
+pub trait InterruptControllerOrNexusNode: InterruptControllerNode + InterruptNexusNode {
+    fn interrupt_cells(&self) -> Option<u32>;
 }
 
 #[derive(Debug)]

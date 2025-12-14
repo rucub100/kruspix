@@ -24,10 +24,11 @@ mod wifi;
 
 #[derive(Debug, Copy, Clone)]
 pub enum DriverInitError {
-    Reserved,
-    Disabled,
-    Failed,
+    DeviceReserved,
+    DeviceDisabled,
+    DeviceFailed,
     Retry,
+    DeviceTreeError,
     ToDo,
 }
 
@@ -46,7 +47,12 @@ pub trait PlatformDriver {
     }
 }
 
-pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[&serial::bcm2835_aux_uart::DRIVER];
+pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
+    // interrupt controllers
+    &interrupt_controller::bcm2836_l1_intc::DRIVER,
+    // serial devices
+    &serial::bcm2835_aux_uart::DRIVER,
+];
 
 pub fn init_platform_drivers() {
     kprintln!("Initializing platform drivers...");
@@ -93,6 +99,9 @@ fn match_driver(node: &Node) -> Option<&dyn PlatformDriver> {
     let compatible_list = node.compatible()?;
 
     kprintln!("Node {} compatible with {:?}", node.path(), compatible_list);
+    if let Some(x) = node.phandle() {
+        kprintln!("-> has phandle {}", x.0);
+    }
 
     for compatible in compatible_list {
         let driver = PLATFORM_DRIVERS

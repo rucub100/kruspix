@@ -1,10 +1,11 @@
 use core::iter;
 use core::ptr;
 
-use crate::arch::mm::mmu::PAGE_SIZE;
+use crate::arch::mm::mmu::{PAGE_SIZE, map_page};
 use crate::kprintln;
 
 use crate::kernel::sync::SpinLock;
+use crate::mm::layout::{IO_PERIPHERALS_MAP_OFFSET, IO_PERIPHERALS_MAP_SIZE};
 use frame_allocator::{BitMapFrameAllocator, PageFrameAllocator};
 pub use heap_allocator::init_heap;
 use layout::LINEAR_MAP_OFFSET;
@@ -52,7 +53,12 @@ pub fn init_phys_mem(
             _ => "(I/O PERIPHERALS)",
         };
 
-        kprintln!("-> address: {:#x}, size: {:#x} bytes {}", addr, size, suffix);
+        kprintln!(
+            "-> address: {:#x}, size: {:#x} bytes {}",
+            addr,
+            size,
+            suffix
+        );
     }
 
     BOOT_PHYS_MEM_MANAGER.lock().replace(BootPhysMemManager {
@@ -125,4 +131,19 @@ pub fn dealloc_page(ptr: *mut u8) {
     unsafe {
         dealloc_frame(virt_to_phys(ptr as usize) as *mut u8);
     }
+}
+
+pub fn map_io_region(pa: usize, size: usize) -> usize {
+    assert!(
+        IO_PERIPHERALS_MAP_OFFSET + pa + size
+            <= IO_PERIPHERALS_MAP_OFFSET + IO_PERIPHERALS_MAP_SIZE
+    );
+
+    let va = IO_PERIPHERALS_MAP_OFFSET + pa;
+
+    for offset in (0..size).step_by(PAGE_SIZE) {
+        map_page(va + offset, pa + offset);
+    }
+
+    va
 }

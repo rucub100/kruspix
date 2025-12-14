@@ -1,7 +1,6 @@
 //! Memory layout constants for the kernel.
 //!
 //! This module defines the virtual memory layout offsets used by the kernel.
-//! Each region is 15TiB in size.
 
 /// User space region.
 pub const USER_MAP_OFFSET: usize = 0x0000_0000_0000_0000;

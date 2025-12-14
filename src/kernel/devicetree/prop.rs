@@ -6,7 +6,7 @@ use super::PHandle;
 use super::fdt::raw_prop::RawProp;
 use super::interrupts::{
     ExtendedInterrupts, INTERRUPT_CELLS, INTERRUPT_CONTROLLER, INTERRUPT_MAP, INTERRUPT_MAP_MASK,
-    INTERRUPT_PARENT, INTERRUPTS, INTERRUPTS_EXTENDED, InterruptGeneratingDevice, InterruptMap,
+    INTERRUPT_PARENT, INTERRUPTS, INTERRUPTS_EXTENDED, InterruptGeneratingNode, InterruptMap,
     InterruptMapMask, Interrupts, InterruptsProperty,
 };
 use super::node::Node;
