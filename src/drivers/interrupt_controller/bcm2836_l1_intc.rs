@@ -1,4 +1,6 @@
 use alloc::boxed::Box;
+use core::mem::size_of;
+use core::ptr::{read_volatile, write_volatile};
 
 use crate::drivers::DriverInitError::DeviceTreeError;
 use crate::drivers::{DriverInitError, PlatformDriver};
@@ -8,6 +10,7 @@ use crate::kernel::devicetree::interrupts::{
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
 use crate::kernel::irq::{InterruptController, IrqResult, register_controller};
+use crate::kernel::sync::with_addr_lock;
 use crate::kprintln;
 use crate::mm::map_io_region;
 
@@ -49,11 +52,16 @@ const CORE_UNRELATED_DEST_FIQ_CORE_2: u32 = 6;
 const CORE_UNRELATED_DEST_FIQ_CORE_3: u32 = 7;
 
 // Registers
-const CORE_IRQ_SOURCE_REG_OFFSET: usize = 0x60;
-const CORE_FIQ_SOURCE_REG_OFFSET: usize = 0x70;
+const GPU_INT_ROUTING_REG_OFFSET: usize = 0xc;
+const PMU_INT_ROUTING_SET_REG_OFFSET: usize = 0x10;
+const PMU_INT_ROUTING_CLR_REG_OFFSET: usize = 0x14;
+const LOCAL_TIMER_INT_ROUTING_REG_OFFSET: usize = 0x24;
+const AXI_OUTSTANDING_IRQ_REG_OFFSET: usize = 0x30;
+const LOCAL_TIMER_CTRL_AND_STATUS_REG_OFFSET: usize = 0x34;
 const CORE_TIMERS_INT_CTRL_REG_OFFSET: usize = 0x40;
 const CORE_MBOX_INT_CTRL_REG_OFFSET: usize = 0x50;
-const GPU_INT_ROUTING_REG_OFFSET: usize = 0xc;
+const CORE_IRQ_SOURCE_REG_OFFSET: usize = 0x60;
+const CORE_FIQ_SOURCE_REG_OFFSET: usize = 0x70;
 
 pub struct InterruptControllerDriver;
 
@@ -69,9 +77,67 @@ pub struct InterruptControllerDevice {
 
 impl InterruptControllerDevice {
     pub fn init(reg_base: usize) -> Self {
+        // GPU interrupts routing to core 0 (FIQ + IRQ)
+        let gpu_int_routing_reg = (reg_base + GPU_INT_ROUTING_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(gpu_int_routing_reg, 0);
+        }
 
-        // TODO: missing actual initialization of the interrupt controller hardware
-        
+        // PMU interrupt routing (disabled)
+        let pmu_int_routing_clr_reg = (reg_base + PMU_INT_ROUTING_CLR_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(pmu_int_routing_clr_reg, u32::MAX);
+        }
+
+        // Core timers interrupts (disabled)
+        let core_timers_int_ctrl_reg = reg_base + CORE_TIMERS_INT_CTRL_REG_OFFSET;
+        unsafe {
+            for core in 0..4 {
+                write_volatile(
+                    (core_timers_int_ctrl_reg + core * size_of::<u32>()) as *mut u32,
+                    0,
+                );
+            }
+        }
+
+        // Core mailboxes interrupts (disabled)
+        let core_mbox_int_ctrl_reg = reg_base + CORE_MBOX_INT_CTRL_REG_OFFSET;
+        unsafe {
+            for core in 0..4 {
+                write_volatile(
+                    (core_mbox_int_ctrl_reg + core * size_of::<u32>()) as *mut u32,
+                    0,
+                );
+            }
+        }
+
+        // AXI-outstanding interrupt enable (disabled)
+        let axi_outstanding_irq_reg = (reg_base + AXI_OUTSTANDING_IRQ_REG_OFFSET) as *mut u32;
+        unsafe {
+            with_addr_lock(axi_outstanding_irq_reg as usize, || {
+                let mut value = read_volatile(axi_outstanding_irq_reg);
+                value = value & !(1 << 20);
+                write_volatile(axi_outstanding_irq_reg, value);
+            });
+        }
+
+        // Local timer interrupt routing to core 0 (IRQ)
+        let local_timer_int_routing_reg =
+            (reg_base + LOCAL_TIMER_INT_ROUTING_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(local_timer_int_routing_reg, CORE_UNRELATED_DEST_IRQ_CORE_0);
+        }
+        // Local timer interrupt enable (disabled)
+        let local_timer_ctrl_and_status_reg =
+            (reg_base + LOCAL_TIMER_CTRL_AND_STATUS_REG_OFFSET) as *mut u32;
+        unsafe {
+            with_addr_lock(local_timer_ctrl_and_status_reg as usize, || {
+                let mut value = read_volatile(local_timer_ctrl_and_status_reg);
+                value = value & !(1 << 29);
+                write_volatile(local_timer_ctrl_and_status_reg, value);
+            });
+        }
+
         Self { reg_base }
     }
 }
@@ -143,7 +209,7 @@ impl PlatformDriver for InterruptControllerDriver {
 
         let addr = map_io_region(phys_addr, length);
         let dev = InterruptControllerDevice::init(addr);
-        
+
         register_controller(node, Box::new(dev), hwirq::COUNT)
             .map_err(|_| DriverInitError::Retry)?;
 
