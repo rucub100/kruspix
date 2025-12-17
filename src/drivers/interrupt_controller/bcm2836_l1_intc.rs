@@ -2,15 +2,15 @@ use alloc::boxed::Box;
 use core::mem::size_of;
 use core::ptr::{read_volatile, write_volatile};
 
-use crate::drivers::DriverInitError::DeviceTreeError;
+use crate::arch::cpu::core_id;
 use crate::drivers::{DriverInitError, PlatformDriver};
 use crate::kernel::devicetree::interrupts::{
     InterruptControllerNode, InterruptControllerOrNexusNode,
 };
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
-use crate::kernel::irq::{InterruptController, IrqResult, register_controller};
-use crate::kernel::sync::with_addr_lock;
+use crate::kernel::irq::{InterruptController, IrqError, IrqResult, register_controller};
+use crate::kernel::sync::{with_addr_lock, without_irq_fiq};
 use crate::kprintln;
 use crate::mm::map_io_region;
 
@@ -39,17 +39,19 @@ mod hwirq {
 // Core related interrupts
 const CORE_RELATED_DEST_NONE: u32 = 0;
 const CORE_RELATED_DEST_IRQ: u32 = 1;
-const CORE_RELATED_DEST_FIQ: u32 = 2;
+// we do not support FIQ for now
+// const CORE_RELATED_DEST_FIQ: u32 = 2;
 
 // Core un-related interrupts
 const CORE_UNRELATED_DEST_IRQ_CORE_0: u32 = 0;
 const CORE_UNRELATED_DEST_IRQ_CORE_1: u32 = 1;
 const CORE_UNRELATED_DEST_IRQ_CORE_2: u32 = 2;
 const CORE_UNRELATED_DEST_IRQ_CORE_3: u32 = 3;
-const CORE_UNRELATED_DEST_FIQ_CORE_0: u32 = 4;
-const CORE_UNRELATED_DEST_FIQ_CORE_1: u32 = 5;
-const CORE_UNRELATED_DEST_FIQ_CORE_2: u32 = 6;
-const CORE_UNRELATED_DEST_FIQ_CORE_3: u32 = 7;
+// we do not support FIQ for now
+// const CORE_UNRELATED_DEST_FIQ_CORE_0: u32 = 4;
+// const CORE_UNRELATED_DEST_FIQ_CORE_1: u32 = 5;
+// const CORE_UNRELATED_DEST_FIQ_CORE_2: u32 = 6;
+// const CORE_UNRELATED_DEST_FIQ_CORE_3: u32 = 7;
 
 // Registers
 const GPU_INT_ROUTING_REG_OFFSET: usize = 0xc;
@@ -61,15 +63,10 @@ const LOCAL_TIMER_CTRL_AND_STATUS_REG_OFFSET: usize = 0x34;
 const CORE_TIMERS_INT_CTRL_REG_OFFSET: usize = 0x40;
 const CORE_MBOX_INT_CTRL_REG_OFFSET: usize = 0x50;
 const CORE_IRQ_SOURCE_REG_OFFSET: usize = 0x60;
-const CORE_FIQ_SOURCE_REG_OFFSET: usize = 0x70;
+// we do not support FIQ for now
+// const CORE_FIQ_SOURCE_REG_OFFSET: usize = 0x70;
 
 pub struct InterruptControllerDriver;
-
-impl InterruptControllerDriver {
-    pub const fn new() -> Self {
-        Self {}
-    }
-}
 
 pub struct InterruptControllerDevice {
     reg_base: usize,
@@ -91,8 +88,8 @@ impl InterruptControllerDevice {
 
         // Core timers interrupts (disabled)
         let core_timers_int_ctrl_reg = reg_base + CORE_TIMERS_INT_CTRL_REG_OFFSET;
-        unsafe {
-            for core in 0..4 {
+        for core in 0..4 {
+            unsafe {
                 write_volatile(
                     (core_timers_int_ctrl_reg + core * size_of::<u32>()) as *mut u32,
                     0,
@@ -102,8 +99,8 @@ impl InterruptControllerDevice {
 
         // Core mailboxes interrupts (disabled)
         let core_mbox_int_ctrl_reg = reg_base + CORE_MBOX_INT_CTRL_REG_OFFSET;
-        unsafe {
-            for core in 0..4 {
+        for core in 0..4 {
+            unsafe {
                 write_volatile(
                     (core_mbox_int_ctrl_reg + core * size_of::<u32>()) as *mut u32,
                     0,
@@ -113,13 +110,11 @@ impl InterruptControllerDevice {
 
         // AXI-outstanding interrupt enable (disabled)
         let axi_outstanding_irq_reg = (reg_base + AXI_OUTSTANDING_IRQ_REG_OFFSET) as *mut u32;
-        unsafe {
-            with_addr_lock(axi_outstanding_irq_reg as usize, || {
-                let mut value = read_volatile(axi_outstanding_irq_reg);
-                value = value & !(1 << 20);
-                write_volatile(axi_outstanding_irq_reg, value);
-            });
-        }
+        with_addr_lock(axi_outstanding_irq_reg as usize, || unsafe {
+            let mut value = read_volatile(axi_outstanding_irq_reg);
+            value = value & !(1 << 20);
+            write_volatile(axi_outstanding_irq_reg, value);
+        });
 
         // Local timer interrupt routing to core 0 (IRQ)
         let local_timer_int_routing_reg =
@@ -130,33 +125,187 @@ impl InterruptControllerDevice {
         // Local timer interrupt enable (disabled)
         let local_timer_ctrl_and_status_reg =
             (reg_base + LOCAL_TIMER_CTRL_AND_STATUS_REG_OFFSET) as *mut u32;
-        unsafe {
-            with_addr_lock(local_timer_ctrl_and_status_reg as usize, || {
-                let mut value = read_volatile(local_timer_ctrl_and_status_reg);
-                value = value & !(1 << 29);
-                write_volatile(local_timer_ctrl_and_status_reg, value);
-            });
-        }
+        with_addr_lock(local_timer_ctrl_and_status_reg as usize, || unsafe {
+            let mut value = read_volatile(local_timer_ctrl_and_status_reg);
+            value = value & !(1 << 29);
+            write_volatile(local_timer_ctrl_and_status_reg, value);
+        });
 
         Self { reg_base }
+    }
+
+    #[inline]
+    fn update_reg(&self, reg: *mut u32, bit: u32, enable: bool) {
+        without_irq_fiq(|| {
+            with_addr_lock(reg as usize, || unsafe {
+                let mut value = read_volatile(reg);
+                if enable {
+                    value |= 1 << bit
+                } else {
+                    value &= !(1 << bit)
+                };
+                write_volatile(reg, value);
+            });
+        });
+    }
+
+    #[inline]
+    fn update_core_related_reg(&self, reg_offset: usize, bit: u32, enable: bool) {
+        let core_id = core_id();
+        let core_related_reg =
+            (self.reg_base + reg_offset + core_id * size_of::<u32>()) as *mut u32;
+        self.update_reg(core_related_reg, bit, enable);
+    }
+
+    #[inline]
+    fn update_core_unrelated_reg(&self, reg_offset: usize, bit: u32, enable: bool) {
+        let core_unrelated_reg = (self.reg_base + reg_offset) as *mut u32;
+        self.update_reg(core_unrelated_reg, bit, enable);
+    }
+
+    fn enable_timer_interrupt(&self, hwirq: u32) {
+        // 4 core timer interrupts
+        assert!(hwirq < 4);
+        self.update_core_related_reg(CORE_TIMERS_INT_CTRL_REG_OFFSET, hwirq, true);
+    }
+
+    fn disable_timer_interrupt(&self, hwirq: u32) {
+        // 4 core timer interrupts
+        assert!(hwirq < 4);
+        self.update_core_related_reg(CORE_TIMERS_INT_CTRL_REG_OFFSET, hwirq, false);
+    }
+
+    fn enable_mailbox_interrupt(&self, hwirq: u32) {
+        // 4 core mailbox interrupts
+        assert!(hwirq >= 4);
+        assert!(hwirq < 8);
+        self.update_core_related_reg(CORE_MBOX_INT_CTRL_REG_OFFSET, (hwirq - 4), true);
+    }
+
+    fn disable_mailbox_interrupt(&self, hwirq: u32) {
+        // 4 core mailbox interrupts
+        assert!(hwirq >= 4);
+        assert!(hwirq < 8);
+        self.update_core_related_reg(CORE_MBOX_INT_CTRL_REG_OFFSET, (hwirq - 4), false);
+    }
+
+    fn enable_pmu_interrupt(&self) {
+        let core_id = core_id();
+        let pmu_int_routing_set_reg = (self.reg_base + PMU_INT_ROUTING_SET_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(pmu_int_routing_set_reg, 1 << core_id);
+        }
+    }
+
+    fn disable_pmu_interrupt(&self) {
+        let core_id = core_id();
+        let pmu_int_routing_clr_reg = (self.reg_base + PMU_INT_ROUTING_CLR_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(pmu_int_routing_clr_reg, 1 << core_id);
+        }
+    }
+
+    fn enable_axi_interrupt(&self) {
+        self.update_core_unrelated_reg(AXI_OUTSTANDING_IRQ_REG_OFFSET, 20, true);
+    }
+
+    fn disable_axi_interrupt(&self) {
+        self.update_core_unrelated_reg(AXI_OUTSTANDING_IRQ_REG_OFFSET, 20, false);
+    }
+
+    fn enable_local_timer_interrupt(&self) {
+        self.update_core_unrelated_reg(LOCAL_TIMER_CTRL_AND_STATUS_REG_OFFSET, 29, true);
+    }
+
+    fn disable_local_timer_interrupt(&self) {
+        self.update_core_unrelated_reg(LOCAL_TIMER_CTRL_AND_STATUS_REG_OFFSET, 29, false);
     }
 }
 
 impl InterruptController for InterruptControllerDevice {
     fn enable(&self, hwirq: u32) {
-        todo!()
+        match hwirq {
+            hwirq::HWIRQ_GPU => {} // GPU interrupt is always enabled
+            hwirq::HWIRQ_CNTPSIRQ
+            | hwirq::HWIRQ_CNTPNSIRQ
+            | hwirq::HWIRQ_CNTHPIRQ
+            | hwirq::HWIRQ_CNTVIRQ => {
+                self.enable_timer_interrupt(hwirq);
+            }
+            hwirq::HWIRQ_MAILBOX_0
+            | hwirq::HWIRQ_MAILBOX_1
+            | hwirq::HWIRQ_MAILBOX_2
+            | hwirq::HWIRQ_MAILBOX_3 => {
+                self.enable_mailbox_interrupt(hwirq);
+            }
+            hwirq::HWIRQ_PMU => {
+                self.enable_pmu_interrupt();
+            }
+            hwirq::HWIRQ_AXI => {
+                self.enable_axi_interrupt();
+            }
+            hwirq::HWIRQ_LOCAL_TIMER => {
+                self.enable_local_timer_interrupt();
+            }
+            _ => unreachable!(),
+        }
     }
 
     fn disable(&self, hwirq: u32) {
-        todo!()
+        match hwirq {
+            hwirq::HWIRQ_GPU => {} // GPU interrupt is always enabled
+            hwirq::HWIRQ_CNTPSIRQ
+            | hwirq::HWIRQ_CNTPNSIRQ
+            | hwirq::HWIRQ_CNTHPIRQ
+            | hwirq::HWIRQ_CNTVIRQ => {
+                self.disable_timer_interrupt(hwirq);
+            }
+            hwirq::HWIRQ_MAILBOX_0
+            | hwirq::HWIRQ_MAILBOX_1
+            | hwirq::HWIRQ_MAILBOX_2
+            | hwirq::HWIRQ_MAILBOX_3 => {
+                self.disable_mailbox_interrupt(hwirq);
+            }
+            hwirq::HWIRQ_PMU => {
+                self.disable_pmu_interrupt();
+            }
+            hwirq::HWIRQ_AXI => {
+                self.disable_axi_interrupt();
+            }
+            hwirq::HWIRQ_LOCAL_TIMER => {
+                self.disable_local_timer_interrupt();
+            }
+            _ => unreachable!(),
+        }
     }
 
     fn pending_hwirq(&self) -> Option<u32> {
-        todo!()
+        let core_id = core_id();
+
+        let core_irq_source_reg =
+            (self.reg_base + CORE_IRQ_SOURCE_REG_OFFSET + core_id * size_of::<u32>()) as *const u32;
+        let pending = unsafe { read_volatile(core_irq_source_reg) };
+
+        if pending == 0 {
+            return None;
+        }
+
+        Some(pending.trailing_zeros())
     }
 
+    /// Translates a specifier to a hardware IRQ number.
+    ///
+    /// # Safety
+    /// This function assumes that the specifier length is 2, as verified during [`PlatformDriver::try_init`].
     fn xlate(&self, specifier: &[u32]) -> IrqResult<u32> {
-        todo!()
+        // specifier[0]: hardware IRQ number
+        // specifier[1]: flags (ignored)
+        let hwirq = specifier[0];
+        if hwirq < hwirq::COUNT {
+            Ok(hwirq)
+        } else {
+            Err(IrqError::TranslationFailed)
+        }
     }
 }
 
@@ -173,32 +322,38 @@ impl PlatformDriver for InterruptControllerDriver {
                 "[ERROR][{}] missing 'interrupt-controller' property",
                 self.compatible()
             );
-            return Err(DeviceTreeError);
+            return Err(DriverInitError::DeviceTreeError);
         }
 
-        let interrupt_cells = node.interrupt_cells().ok_or(DeviceTreeError)?;
+        let interrupt_cells = node
+            .interrupt_cells()
+            .ok_or(DriverInitError::DeviceTreeError)?;
         if interrupt_cells != 2 {
             kprintln!(
                 "[ERROR][{}] invalid '#interrupt-cells' property value: expected 2, got {}",
                 self.compatible(),
                 interrupt_cells
             );
-            return Err(DeviceTreeError);
+            return Err(DriverInitError::DeviceTreeError);
         }
 
-        let reg = node.reg().ok_or(DeviceTreeError)?;
+        let reg = node.reg().ok_or(DriverInitError::DeviceTreeError)?;
         if reg.len() != 1 {
             kprintln!(
                 "[ERROR][{}] invalid 'reg' property: expected 1 region, got {}",
                 self.compatible(),
                 reg.len()
             );
-            return Err(DeviceTreeError);
+            return Err(DriverInitError::DeviceTreeError);
         }
 
-        let reg = reg.first().ok_or(DeviceTreeError)?;
-        let phys_addr = reg.address_as_usize().map_err(|_| DeviceTreeError)?;
-        let length = reg.length_as_usize().map_err(|_| DeviceTreeError)?;
+        let reg = reg.first().ok_or(DriverInitError::DeviceTreeError)?;
+        let phys_addr = reg
+            .address_as_usize()
+            .map_err(|_| DriverInitError::DeviceTreeError)?;
+        let length = reg
+            .length_as_usize()
+            .map_err(|_| DriverInitError::DeviceTreeError)?;
 
         kprintln!(
             "[{}] reg: phys_addr=0x{:x}, length=0x{:x}",
@@ -219,4 +374,4 @@ impl PlatformDriver for InterruptControllerDriver {
     }
 }
 
-pub static DRIVER: InterruptControllerDriver = InterruptControllerDriver::new();
+pub static DRIVER: InterruptControllerDriver = InterruptControllerDriver;
