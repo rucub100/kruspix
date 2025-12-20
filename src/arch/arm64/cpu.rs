@@ -51,3 +51,14 @@ pub unsafe fn restore_interrupts(handle: usize) {
         )
     };
 }
+
+/// Enable IRQ and FIQ interrupts on the current core.
+#[inline(always)]
+pub fn enable_irq_fiq() {
+    unsafe {
+        asm!(
+        "msr daifclr, #0b11",
+        options(nomem, nostack)
+        )
+    };
+}

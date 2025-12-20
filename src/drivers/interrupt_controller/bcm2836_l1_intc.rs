@@ -5,7 +5,7 @@ use core::ptr::{read_volatile, write_volatile};
 use crate::arch::cpu::core_id;
 use crate::drivers::{DriverInitError, PlatformDriver};
 use crate::kernel::devicetree::interrupts::{
-    InterruptControllerNode, InterruptControllerOrNexusNode,
+    InterruptControllerNode, InterruptControllerOrNexusNode, InterruptSpecifier,
 };
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
@@ -297,12 +297,12 @@ impl InterruptController for InterruptControllerDevice {
     ///
     /// # Safety
     /// This function assumes that the specifier length is 2, as verified during [`PlatformDriver::try_init`].
-    fn xlate(&self, specifier: &[u32]) -> IrqResult<u32> {
+    fn xlate(&self, specifier: &InterruptSpecifier) -> IrqResult<u32> {
         // specifier[0]: hardware IRQ number
         // specifier[1]: flags (ignored)
-        let hwirq = specifier[0];
-        if hwirq < hwirq::COUNT {
-            Ok(hwirq)
+        let hwirq = specifier.0.get(0).ok_or(IrqError::TranslationFailed)?;
+        if *hwirq < hwirq::COUNT {
+            Ok(*hwirq)
         } else {
             Err(IrqError::TranslationFailed)
         }

@@ -1,11 +1,14 @@
-use alloc::boxed::Box;
-use alloc::vec::Vec;
-use core::sync::atomic::{AtomicUsize, Ordering};
-
-use crate::kernel::devicetree::interrupts::{InterruptControllerNode, InterruptGeneratingNode};
+use crate::kernel::devicetree::get_devicetree;
+use crate::kernel::devicetree::interrupts::{
+    InterruptControllerNode, InterruptControllerOrNexusNode, InterruptGeneratingNode,
+    InterruptNexusNode, InterruptSpecifier,
+};
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
 use crate::kernel::sync::{OnceLock, SpinLock};
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug, Clone, Copy)]
 pub enum IrqError {
@@ -25,7 +28,7 @@ pub trait InterruptController: Send + Sync {
     fn pending_hwirq(&self) -> Option<u32>;
     fn ack(&self, _hwirq: u32) {}
     /// Translates a specifier to a hardware IRQ number
-    fn xlate(&self, specifier: &[u32]) -> IrqResult<u32>;
+    fn xlate(&self, specifier: &InterruptSpecifier) -> IrqResult<u32>;
 }
 
 pub trait InterruptHandler: Send + Sync {
@@ -57,14 +60,34 @@ static CONTROLLERS: SpinLock<Vec<IrqDomain>> = SpinLock::new(Vec::new());
 static IRQ_HANDLERS: SpinLock<[Option<Box<dyn InterruptHandler>>; MAX_IRQS]> =
     SpinLock::new([const { None }; MAX_IRQS]);
 
-// TODO: update arch-specific setup to call this function
 #[unsafe(no_mangle)]
-extern "C" fn _global_irq_dispatch() {
-    todo!()
+pub extern "C" fn global_irq_dispatch() {
+    if let Some(root) = ROOT_CONTROLLER.get() {
+        if let Some(hwirq) = root.controller.pending_hwirq() {
+            dispatch_irq(root.virq_base + hwirq);
+        }
+    }
 }
 
 pub fn dispatch_irq(virq: u32) {
-    todo!()
+    if virq as usize >= MAX_IRQS {
+        return;
+    }
+
+    // get the ptr for the handler and drop the lock to avoid deadlocks (e.g. chain of interrupts)
+    let handler_ptr = {
+        let handlers = IRQ_HANDLERS.lock();
+        handlers[virq as usize]
+            .as_ref()
+            .map(|h| &**h as *const dyn InterruptHandler)
+    };
+
+    if let Some(handler_ptr) = handler_ptr {
+        // SAFETY: boxed handler from static array does not move and is valid forever
+        // as long as it is not unregistered (which we don't support currently)
+        let handler = unsafe { &*handler_ptr };
+        handler.handle_irq(virq);
+    }
 }
 
 pub fn register_controller(
@@ -94,6 +117,10 @@ pub fn register_controller(
         return Err(IrqError::InvalidControllerParent);
     }
 
+    if NEXT_VIRQ_BASE.load(Ordering::Relaxed) >= (MAX_IRQS - irq_count as usize) {
+        return Err(IrqError::InvalidConfig);
+    }
+
     let virq_base = NEXT_VIRQ_BASE.fetch_add(irq_count as usize, Ordering::SeqCst) as u32;
     let irq_domain = IrqDomain {
         node_addr: node as *const _ as usize,
@@ -116,9 +143,74 @@ pub fn register_controller(
 }
 
 pub fn register_handler(virq: u32, handler: Box<dyn InterruptHandler>) -> IrqResult<()> {
-    todo!()
+    if virq as usize >= MAX_IRQS {
+        return Err(IrqError::InvalidVirq);
+    }
+
+    let mut handlers = IRQ_HANDLERS.lock();
+    if handlers[virq as usize].is_some() {
+        return Err(IrqError::Busy);
+    }
+
+    handlers[virq as usize] = Some(handler);
+
+    let domains = CONTROLLERS.lock();
+    let domain = ROOT_CONTROLLER
+        .get()
+        .into_iter()
+        .chain(domains.iter())
+        .find(|d| virq >= d.virq_base && virq < d.virq_base + d.irq_count)
+        .ok_or(IrqError::InvalidVirq)?;
+
+    let hwirq = virq - domain.virq_base;
+    domain.controller.enable(hwirq);
+
+    Ok(())
 }
 
 pub fn resolve_virq(node: &Node, index: usize) -> IrqResult<u32> {
-    todo!()
+    if node.interrupts_extended().is_some() {
+        // TODO: extended interrupts have higher precedence than regular interrupts
+        // and they are mutually exclusive to regular interrupts
+        todo!()
+    }
+
+    let interrupts = node.interrupts().ok_or(IrqError::InvalidConfig)?;
+
+    let dt = get_devicetree().ok_or(IrqError::InvalidConfig)?;
+    let int_parent_phandle = node.interrupt_parent();
+    let int_parent = if let Some(phandle) = int_parent_phandle {
+        dt.node_by_phandle(phandle).ok_or(IrqError::InvalidConfig)?
+    } else {
+        node.parent().ok_or(IrqError::InvalidControllerParent)?
+    };
+
+    if !int_parent.is_interrupt_controller() {
+        return Err(IrqError::InvalidControllerParent);
+    }
+
+    if int_parent.interrupt_map().is_some() {
+        // FIXME: handle interrupt nexus nodes
+        todo!()
+    }
+
+    let interrupt_cells = int_parent
+        .interrupt_cells()
+        .ok_or(IrqError::InvalidConfig)?;
+    let specifier = interrupts
+        .iter(interrupt_cells)
+        .nth(index)
+        .ok_or(IrqError::InvalidConfig)?;
+
+    let node_addr = int_parent as *const _ as usize;
+    let domains = CONTROLLERS.lock();
+    let domain = ROOT_CONTROLLER
+        .get()
+        .into_iter()
+        .chain(domains.iter())
+        .find(|d| d.node_addr == node_addr)
+        .ok_or(IrqError::InvalidControllerParent)?;
+
+    let hwirq = domain.controller.xlate(&specifier)?;
+    Ok(domain.virq_base + hwirq)
 }

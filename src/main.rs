@@ -6,6 +6,7 @@ use kruspix::drivers::init_platform_drivers;
 use kruspix::kernel::devicetree::init_devicetree;
 use kruspix::mm::init_heap;
 use kruspix::{kprint, kprintln};
+use kruspix::arch::cpu::enable_irq_fiq;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn start_kernel() -> ! {
@@ -17,6 +18,8 @@ pub extern "C" fn start_kernel() -> ! {
     init_heap();
     init_devicetree();
     init_platform_drivers();
+    
+    enable_irq_fiq();
 
     // TODO: memory management setup
     // TODO: interrupts/exceptions setup

@@ -40,11 +40,11 @@ impl Interrupts {
         Self { raw_data: data }
     }
 
-    pub fn iter(&self, interrupt_cells: usize) -> impl Iterator<Item = InterruptSpecifier> {
+    pub fn iter(&self, interrupt_cells: u32) -> impl Iterator<Item = InterruptSpecifier> {
         assert!(interrupt_cells > 0);
 
         self.raw_data
-            .chunks_exact(interrupt_cells)
+            .chunks_exact(interrupt_cells as usize)
             .map(|chunk| InterruptSpecifier(chunk.to_vec()))
     }
 }

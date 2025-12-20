@@ -1,4 +1,5 @@
 use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
 use alloc::string::ToString;
 use alloc::sync::Arc;
 use alloc::vec;
@@ -9,6 +10,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use crate::kernel::devicetree::prop::Property;
 use crate::kernel::sync::OnceLock;
 
+use crate::kernel::devicetree::std_prop::PHANDLE;
 use fdt::{Fdt, fdt_structure_block::StructureBlockEntryKind};
 use node::Node;
 
@@ -52,7 +54,14 @@ pub struct DeviceTree {
     boot_cpuid_phys: u32,
     memory_reservations: Vec<(usize, usize)>,
     root: Box<Node>,
+    phandle_map: BTreeMap<u32, *const Node>,
 }
+
+// SAFETY: DeviceTree is immutable after initialization. 
+// The phandle_map contains pointers to Nodes that are owned by the 'root' Box,
+// meaning their heap addresses are stable for the lifetime of the DeviceTree.
+unsafe impl Send for DeviceTree {}
+unsafe impl Sync for DeviceTree {}
 
 impl DeviceTree {
     fn from_fdt(fdt: &Fdt) -> Result<Self, ()> {
@@ -67,6 +76,7 @@ impl DeviceTree {
             .collect();
 
         let mut nodes_stack: Vec<Box<Node>> = vec![];
+        let mut phandle_map = BTreeMap::new();
 
         // SAFETY: from the DTSpec we know this is a depth-first traversal
         // we also know that for each node the FDT representation starts with the node name
@@ -101,12 +111,20 @@ impl DeviceTree {
                             boot_cpuid_phys,
                             memory_reservations,
                             root: child,
+                            phandle_map,
                         });
                     }
                 }
                 StructureBlockEntryKind::Prop(prop) => {
                     if let Some(current_node) = nodes_stack.last_mut() {
                         let property = Property::from_raw(prop, &current_node);
+
+                        if property.name() == PHANDLE {
+                            if let Ok(phandle) = prop.value_as_phandle() {
+                                phandle_map.insert(phandle, current_node.as_ref() as *const Node);
+                            }
+                        }
+
                         current_node.properties_mut().push(property);
                     }
                 }
@@ -142,6 +160,13 @@ impl DeviceTree {
 
     pub fn root(&self) -> &Node {
         &self.root
+    }
+
+    pub fn node_by_phandle(&self, phandle: &PHandle) -> Option<&Node> {
+        let ptr = self.phandle_map.get(&phandle.0)?;
+        // SAFETY: nodes are boxed and the devicetree is protected by an Arc,
+        // so the pointer is valid as long as the devicetree exists (which is forever)
+        unsafe { ptr.as_ref() }
     }
 }
 
