@@ -1,3 +1,7 @@
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::sync::atomic::{AtomicUsize, Ordering};
+
 use crate::kernel::devicetree::get_devicetree;
 use crate::kernel::devicetree::interrupts::{
     InterruptControllerNode, InterruptControllerOrNexusNode, InterruptGeneratingNode,
@@ -6,9 +10,6 @@ use crate::kernel::devicetree::interrupts::{
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
 use crate::kernel::sync::{OnceLock, SpinLock};
-use alloc::boxed::Box;
-use alloc::vec::Vec;
-use core::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug, Clone, Copy)]
 pub enum IrqError {
@@ -22,6 +23,7 @@ pub enum IrqError {
 pub type IrqResult<T> = Result<T, IrqError>;
 
 pub trait InterruptController: Send + Sync {
+    fn set_virq_base(&self, _virq_base: u32) {}
     fn enable(&self, hwirq: u32);
     fn disable(&self, hwirq: u32);
     /// Returns the pending interrupt's hardware IRQ number, if any
@@ -47,7 +49,7 @@ where
 
 struct IrqDomain {
     node_addr: usize,
-    controller: Box<dyn InterruptController>,
+    controller: Arc<dyn InterruptController>,
     virq_base: u32,
     irq_count: u32,
 }
@@ -57,13 +59,13 @@ const MAX_IRQS: usize = 256;
 static NEXT_VIRQ_BASE: AtomicUsize = AtomicUsize::new(0);
 static ROOT_CONTROLLER: OnceLock<IrqDomain> = OnceLock::new();
 static CONTROLLERS: SpinLock<Vec<IrqDomain>> = SpinLock::new(Vec::new());
-static IRQ_HANDLERS: SpinLock<[Option<Box<dyn InterruptHandler>>; MAX_IRQS]> =
+static IRQ_HANDLERS: SpinLock<[Option<Arc<dyn InterruptHandler>>; MAX_IRQS]> =
     SpinLock::new([const { None }; MAX_IRQS]);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn global_irq_dispatch() {
     if let Some(root) = ROOT_CONTROLLER.get() {
-        if let Some(hwirq) = root.controller.pending_hwirq() {
+        while let Some(hwirq) = root.controller.pending_hwirq() {
             dispatch_irq(root.virq_base + hwirq);
         }
     }
@@ -74,25 +76,19 @@ pub fn dispatch_irq(virq: u32) {
         return;
     }
 
-    // get the ptr for the handler and drop the lock to avoid deadlocks (e.g. chain of interrupts)
-    let handler_ptr = {
+    let handler = {
         let handlers = IRQ_HANDLERS.lock();
-        handlers[virq as usize]
-            .as_ref()
-            .map(|h| &**h as *const dyn InterruptHandler)
+        handlers[virq as usize].clone()
     };
 
-    if let Some(handler_ptr) = handler_ptr {
-        // SAFETY: boxed handler from static array does not move and is valid forever
-        // as long as it is not unregistered (which we don't support currently)
-        let handler = unsafe { &*handler_ptr };
+    if let Some(handler) = handler {
         handler.handle_irq(virq);
     }
 }
 
 pub fn register_controller(
     node: &Node,
-    controller: Box<dyn InterruptController>,
+    controller: Arc<dyn InterruptController>,
     irq_count: u32,
 ) -> IrqResult<()> {
     let is_root = match node.interrupt_parent() {
@@ -122,6 +118,9 @@ pub fn register_controller(
     }
 
     let virq_base = NEXT_VIRQ_BASE.fetch_add(irq_count as usize, Ordering::SeqCst) as u32;
+
+    controller.set_virq_base(virq_base);
+
     let irq_domain = IrqDomain {
         node_addr: node as *const _ as usize,
         controller,
@@ -142,7 +141,7 @@ pub fn register_controller(
     Ok(())
 }
 
-pub fn register_handler(virq: u32, handler: Box<dyn InterruptHandler>) -> IrqResult<()> {
+pub fn register_handler(virq: u32, handler: Arc<dyn InterruptHandler>) -> IrqResult<()> {
     if virq as usize >= MAX_IRQS {
         return Err(IrqError::InvalidVirq);
     }

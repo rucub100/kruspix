@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+use alloc::sync::Arc;
 use core::mem::size_of;
 use core::ptr::{read_volatile, write_volatile};
 
@@ -73,7 +73,7 @@ pub struct InterruptControllerDevice {
 }
 
 impl InterruptControllerDevice {
-    pub fn init(reg_base: usize) -> Self {
+    fn init(reg_base: usize) -> Self {
         // GPU interrupts routing to core 0 (FIQ + IRQ)
         let gpu_int_routing_reg = (reg_base + GPU_INT_ROUTING_REG_OFFSET) as *mut u32;
         unsafe {
@@ -364,8 +364,9 @@ impl PlatformDriver for InterruptControllerDriver {
 
         let addr = map_io_region(phys_addr, length);
         let dev = InterruptControllerDevice::init(addr);
+        let dev = Arc::new(dev);
 
-        register_controller(node, Box::new(dev), hwirq::COUNT)
+        register_controller(node, dev, hwirq::COUNT)
             .map_err(|_| DriverInitError::Retry)?;
 
         kprintln!("[{}] initialized successfully", self.compatible());
