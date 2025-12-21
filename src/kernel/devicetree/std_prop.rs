@@ -191,6 +191,57 @@ impl RangesItemValue {
             length,
         }
     }
+    
+    pub fn child_bus_addr(&self) -> &[u32] {
+        &self.child_bus_addr
+    }
+    
+    pub fn parent_bus_addr(&self) -> &[u32] {
+        &self.parent_bus_addr
+    }
+    
+    pub fn length(&self) -> &[u32] {
+        &self.length
+    }
+
+    pub fn child_bus_addr_as_usize(&self) -> Result<usize> {
+        if (self.child_bus_addr.len() * 4) > size_of::<usize>() {
+            return Err(StdPropError::RegConversionError);
+        }
+
+        let mut addr: usize = 0;
+        for &part in self.child_bus_addr.iter() {
+            addr = (addr << 32) | (part as usize);
+        }
+
+        Ok(addr)
+    }
+
+    pub fn parent_bus_addr_as_usize(&self) -> Result<usize> {
+        if (self.parent_bus_addr.len() * 4) > size_of::<usize>() {
+            return Err(StdPropError::RegConversionError);
+        }
+
+        let mut addr: usize = 0;
+        for &part in self.parent_bus_addr.iter() {
+            addr = (addr << 32) | (part as usize);
+        }
+
+        Ok(addr)
+    }
+
+    pub fn length_as_usize(&self) -> Result<usize> {
+        if (self.length.len() * 4) > size_of::<usize>() {
+            return Err(StdPropError::RegConversionError);
+        }
+
+        let mut addr: usize = 0;
+        for &part in self.length.iter() {
+            addr = (addr << 32) | (part as usize);
+        }
+
+        Ok(addr)
+    }
 }
 
 pub type DmaRangesValue = Vec<DmaRangesItemValue>;

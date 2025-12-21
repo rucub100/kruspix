@@ -7,8 +7,8 @@ use core::ptr::NonNull;
 use super::PHandle;
 use super::interrupts::{
     ExtendedInterrupts, INTERRUPT_CELLS, INTERRUPT_CONTROLLER, INTERRUPT_MAP, INTERRUPT_MAP_MASK,
-    INTERRUPT_PARENT, INTERRUPTS, INTERRUPTS_EXTENDED, InterruptControllerOrNexusNode, InterruptMap,
-    InterruptMapMask, Interrupts, InterruptsProperty,
+    INTERRUPT_PARENT, INTERRUPTS, INTERRUPTS_EXTENDED, InterruptControllerOrNexusNode,
+    InterruptMap, InterruptMapMask, Interrupts, InterruptsProperty,
 };
 use super::interrupts::{InterruptControllerNode, InterruptGeneratingNode, InterruptNexusNode};
 use super::prop::{Property, PropertyValue};
@@ -127,6 +127,64 @@ impl Node {
             stack.extend(node.children.iter().rev().map(|b| b.as_ref()));
             Some(node)
         })
+    }
+
+    /// # Safety
+    /// We assume that address and length cells fit into usize.
+    /// Furthermore, we assume that the reg length is always equal to the range length.
+    pub fn resolve_phys_address_and_length(&self) -> Option<(usize, usize)> {
+        let address_length_pair = self
+            .reg()
+            .and_then(|reg| reg.first())
+            .map(|reg| (reg.address_as_usize().ok(), reg.length_as_usize().ok()));
+
+        if let Some((address, length)) = address_length_pair
+            && let (Some(address), Some(length)) = (address, length)
+        {
+            let mut address = address;
+            let mut parent = self.parent();
+
+            while let Some(parent_node) = parent
+                && parent_node.ranges().is_some()
+            {
+                let range = parent_node.ranges().unwrap().iter().find(|range| {
+                    let range_child_bus_addr = range.child_bus_addr_as_usize().ok();
+                    let range_parent_bus_addr = range.parent_bus_addr_as_usize().ok();
+                    let range_length = range.length_as_usize().ok();
+
+                    if let (
+                        Some(range_child_bus_addr),
+                        Some(range_parent_bus_addr),
+                        Some(range_length),
+                    ) = (range_child_bus_addr, range_parent_bus_addr, range_length)
+                    {
+                        address >= range_child_bus_addr
+                            && address < (range_child_bus_addr + range_length)
+                    } else {
+                        false
+                    }
+                });
+
+                if range.is_none() {
+                    break;
+                }
+
+                let range = range.unwrap();
+                let range_child_bus_addr = range.child_bus_addr_as_usize().unwrap();
+                let range_parent_bus_addr = range.parent_bus_addr_as_usize().unwrap();
+                let range_length = range.length_as_usize().unwrap();
+
+                assert!(range_length > length);
+
+                address = range_parent_bus_addr + (address - range_child_bus_addr);
+
+                parent = parent_node.parent();
+            }
+
+            return Some((address, length));
+        }
+
+        None
     }
 }
 

@@ -119,6 +119,8 @@ pub fn setup_page_tables() {
     USER_TABLE.store(user_table_0, Ordering::Release);
 }
 
+/// # Safety
+/// Caller must ensure that `va` and `pa` are aligned to page size.
 pub fn map_page(va: usize, pa: usize) {
     if VirtualAddressSpace::from(va) == VirtualAddressSpace::User {
         todo!()

@@ -138,11 +138,16 @@ pub fn map_io_region(pa: usize, size: usize) -> usize {
         IO_PERIPHERALS_MAP_OFFSET + pa + size
             <= IO_PERIPHERALS_MAP_OFFSET + IO_PERIPHERALS_MAP_SIZE
     );
-
+    
     let va = IO_PERIPHERALS_MAP_OFFSET + pa;
+    
+    // align physical address down to page boundary
+    let pa_aligned = pa & !(PAGE_SIZE - 1);
+    let va_aligned = IO_PERIPHERALS_MAP_OFFSET + pa_aligned;
+    let size_adjusted = size + (pa - pa_aligned);
 
-    for offset in (0..size).step_by(PAGE_SIZE) {
-        map_page(va + offset, pa + offset);
+    for offset in (0..size_adjusted).step_by(PAGE_SIZE) {
+        map_page(va_aligned + offset, pa_aligned + offset);
     }
 
     va

@@ -23,7 +23,7 @@ pub enum IrqError {
 pub type IrqResult<T> = Result<T, IrqError>;
 
 pub trait InterruptController: Send + Sync {
-    fn set_virq_base(&self, _virq_base: u32) {}
+    fn set_virq_base(&self, _virq_base: u32) -> IrqResult<()> { Ok(()) }
     fn enable(&self, hwirq: u32);
     fn disable(&self, hwirq: u32);
     /// Returns the pending interrupt's hardware IRQ number, if any
@@ -119,7 +119,7 @@ pub fn register_controller(
 
     let virq_base = NEXT_VIRQ_BASE.fetch_add(irq_count as usize, Ordering::SeqCst) as u32;
 
-    controller.set_virq_base(virq_base);
+    controller.set_virq_base(virq_base)?;
 
     let irq_domain = IrqDomain {
         node_addr: node as *const _ as usize,

@@ -347,14 +347,9 @@ impl PlatformDriver for InterruptControllerDriver {
             return Err(DriverInitError::DeviceTreeError);
         }
 
-        let reg = reg.first().ok_or(DriverInitError::DeviceTreeError)?;
-        let phys_addr = reg
-            .address_as_usize()
-            .map_err(|_| DriverInitError::DeviceTreeError)?;
-        let length = reg
-            .length_as_usize()
-            .map_err(|_| DriverInitError::DeviceTreeError)?;
-
+        let (phys_addr, length) = node
+            .resolve_phys_address_and_length()
+            .ok_or(DriverInitError::DeviceTreeError)?;
         kprintln!(
             "[{}] reg: phys_addr=0x{:x}, length=0x{:x}",
             self.compatible(),
@@ -366,8 +361,7 @@ impl PlatformDriver for InterruptControllerDriver {
         let dev = InterruptControllerDevice::init(addr);
         let dev = Arc::new(dev);
 
-        register_controller(node, dev, hwirq::COUNT)
-            .map_err(|_| DriverInitError::Retry)?;
+        register_controller(node, dev, hwirq::COUNT).map_err(|_| DriverInitError::Retry)?;
 
         kprintln!("[{}] initialized successfully", self.compatible());
 

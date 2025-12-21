@@ -50,6 +50,7 @@ pub trait PlatformDriver {
 pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     // interrupt controllers
     &interrupt_controller::bcm2836_l1_intc::DRIVER,
+    &interrupt_controller::bcm2836_armctrl_ic::DRIVER,
     // serial devices
     &serial::bcm2835_aux_uart::DRIVER,
 ];

@@ -1,5 +1,3 @@
-use alloc::sync::Arc;
-
 use crate::drivers::{DriverInitError, PlatformDriver};
 use crate::kernel::devicetree::interrupts::{
     InterruptControllerNode, InterruptControllerOrNexusNode, InterruptGeneratingNode,
@@ -8,112 +6,34 @@ use crate::kernel::devicetree::interrupts::{
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
 use crate::kernel::irq::{
-    InterruptController, InterruptHandler, IrqResult, dispatch_irq, register_controller,
+    InterruptController, InterruptHandler, IrqError, IrqResult, dispatch_irq, register_controller,
     register_handler, resolve_virq,
 };
 use crate::kernel::sync::OnceLock;
 use crate::kprintln;
 use crate::mm::map_io_region;
-
-// IRQ basic pending
-mod bank0 {
-    pub const ARM_TIMER: u32 = 0;
-    pub const ARM_MAILBOX: u32 = 1;
-    pub const ARM_DOORBELL_0: u32 = 2;
-    pub const ARM_DOORBELL_1: u32 = 3;
-    pub const VPU0_HALTED: u32 = 4;
-    pub const VPU1_HALTED: u32 = 5;
-    pub const ILLEGAL_TYPE0: u32 = 6;
-    pub const ILLEGAL_TYPE1: u32 = 7;
-}
-
-// IRQ pending 1
-mod bank1 {
-    pub const TIMER0: u32 = 0;
-    pub const TIMER1: u32 = 1;
-    pub const TIMER2: u32 = 2;
-    pub const TIMER3: u32 = 3;
-    pub const CODEC0: u32 = 4;
-    pub const CODEC1: u32 = 5;
-    pub const CODEC2: u32 = 6;
-    pub const VC_JPEG: u32 = 7;
-    pub const ISP: u32 = 8;
-    pub const VC_USB: u32 = 9;
-    pub const VC_3D: u32 = 10;
-    pub const TRANSPOSER: u32 = 11;
-    pub const MULTICORESYNC0: u32 = 12;
-    pub const MULTICORESYNC1: u32 = 13;
-    pub const MULTICORESYNC2: u32 = 14;
-    pub const MULTICORESYNC3: u32 = 15;
-    pub const DMA0: u32 = 16;
-    pub const DMA1: u32 = 17;
-    pub const VC_DMA2: u32 = 18;
-    pub const VC_DMA3: u32 = 19;
-    pub const DMA4: u32 = 20;
-    pub const DMA5: u32 = 21;
-    pub const DMA6: u32 = 22;
-    pub const DMA7: u32 = 23;
-    pub const DMA8: u32 = 24;
-    pub const DMA9: u32 = 25;
-    pub const DMA10: u32 = 26;
-    // shared interrupt for DMA 11 to 14
-    pub const DMA11_14: u32 = 27;
-    // triggers on all dma interrupts (including chanel 15)
-    pub const DMAALL: u32 = 28;
-    pub const AUX: u32 = 29;
-    pub const ARM: u32 = 30;
-    pub const VPUDMA: u32 = 31;
-}
-
-// IRQ pending 2
-mod bank2 {
-    pub const HOSTPORT: u32 = 0;
-    pub const VIDEOSCALER: u32 = 1;
-    pub const CCP2TX: u32 = 2;
-    pub const SDC: u32 = 3;
-    pub const DSI0: u32 = 4;
-    pub const AVE: u32 = 5;
-    pub const CAM0: u32 = 6;
-    pub const CAM1: u32 = 7;
-    pub const HDMI0: u32 = 8;
-    pub const HDMI1: u32 = 9;
-    pub const PIXELVALVE1: u32 = 10;
-    pub const I2CSPISLV: u32 = 11;
-    pub const DSI1: u32 = 12;
-    pub const PWA0: u32 = 13;
-    pub const PWA1: u32 = 14;
-    pub const CPR: u32 = 15;
-    pub const SMI: u32 = 16;
-    pub const GPIO0: u32 = 17;
-    pub const GPIO1: u32 = 18;
-    pub const GPIO2: u32 = 19;
-    pub const GPIO3: u32 = 20;
-    pub const VC_I2C: u32 = 21;
-    pub const VC_SPI: u32 = 22;
-    pub const VC_I2SPCM: u32 = 23;
-    pub const VC_SDIO: u32 = 24;
-    pub const VC_UART: u32 = 25;
-    pub const SLIMBUS: u32 = 26;
-    pub const VEC: u32 = 27;
-    pub const CPG: u32 = 28;
-    pub const RNG: u32 = 29;
-    pub const VC_ARASANSDIO: u32 = 30;
-    pub const AVSPMON: u32 = 31;
-}
+use alloc::sync::Arc;
+use core::ptr::write_volatile;
 
 const HWIRQ_COUNT: u32 = 72;
+const HWIRQ_BASIC_RANGE_START: u32 = 0;
+const HWIRQ_BASIC_RANGE_END: u32 = 7;
+const HWIRQ_1_RANGE_START: u32 = 8;
+const HWIRQ_1_RANGE_END: u32 = 39;
+const HWIRQ_2_RANGE_START: u32 = 40;
+const HWIRQ_2_RANGE_END: u32 = 71;
 
 // Register offsets
-const IRQ_BASIC_PENDING_REG_OFFSET: usize = 0x200;
-const IRQ_PENDING_1_REG_OFFSET: usize = 0x204;
-const IRQ_PENDING_2_REG_OFFSET: usize = 0x208;
-const FIQ_CTRL_REG_OFFSET: usize = 0x20C;
-const ENABLE_IRQS_1_REG_OFFSET: usize = 0x210;
-const ENABLE_IRQS_2_REG_OFFSET: usize = 0x214;
-const ENABLE_BASIC_IRQS_REG_OFFSET: usize = 0x218;
-const DISABLE_IRQS_1_REG_OFFSET: usize = 0x21C;
-const DISABLE_IRQS_2_REG_OFFSET: usize = 0x220;
-const DISABLE_BASIC_IRQS_REG_OFFSET: usize = 0x224;
+const IRQ_BASIC_PENDING_REG_OFFSET: usize = 0x0;
+const IRQ_PENDING_1_REG_OFFSET: usize = 0x4;
+const IRQ_PENDING_2_REG_OFFSET: usize = 0x8;
+const FIQ_CTRL_REG_OFFSET: usize = 0xC;
+const ENABLE_IRQS_1_REG_OFFSET: usize = 0x10;
+const ENABLE_IRQS_2_REG_OFFSET: usize = 0x14;
+const ENABLE_BASIC_IRQS_REG_OFFSET: usize = 0x18;
+const DISABLE_IRQS_1_REG_OFFSET: usize = 0x1C;
+const DISABLE_IRQS_2_REG_OFFSET: usize = 0x20;
+const DISABLE_BASIC_IRQS_REG_OFFSET: usize = 0x24;
 
 pub struct InterruptControllerDriver;
 
@@ -127,7 +47,8 @@ impl InterruptControllerDevice {
         // disable FIQ
         let fiq_ctrl_reg = (reg_base + FIQ_CTRL_REG_OFFSET) as *mut u32;
         unsafe {
-            fiq_ctrl_reg.write_volatile(0);
+            // FIXME: hangs here forever!!!
+            write_volatile(fiq_ctrl_reg, 0);
         }
 
         // disable all IRQs
@@ -135,9 +56,9 @@ impl InterruptControllerDevice {
         let disable_irqs_2_reg = (reg_base + DISABLE_IRQS_2_REG_OFFSET) as *mut u32;
         let disable_basic_irqs_reg = (reg_base + DISABLE_BASIC_IRQS_REG_OFFSET) as *mut u32;
         unsafe {
-            disable_irqs_1_reg.write_volatile(u32::MAX);
-            disable_irqs_2_reg.write_volatile(u32::MAX);
-            disable_basic_irqs_reg.write_volatile(u32::MAX);
+            write_volatile(disable_irqs_1_reg, u32::MAX);
+            write_volatile(disable_irqs_2_reg, u32::MAX);
+            write_volatile(disable_basic_irqs_reg, u32::MAX);
         }
 
         Self {
@@ -145,31 +66,145 @@ impl InterruptControllerDevice {
             virq_base: OnceLock::new(),
         }
     }
+
+    fn enable_basic_irq(&self, hwirq: u32) {
+        let enable_basic_irqs_reg = (self.reg_base + ENABLE_BASIC_IRQS_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(enable_basic_irqs_reg, 1 << hwirq);
+        }
+    }
+
+    fn enable_irq_1(&self, hwirq: u32) {
+        let enable_irqs_1_reg = (self.reg_base + ENABLE_IRQS_1_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(enable_irqs_1_reg, 1 << (hwirq - HWIRQ_1_RANGE_START));
+        }
+    }
+
+    fn enable_irq_2(&self, hwirq: u32) {
+        let enable_irqs_2_reg = (self.reg_base + ENABLE_IRQS_2_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(enable_irqs_2_reg, 1 << (hwirq - HWIRQ_2_RANGE_START));
+        }
+    }
+
+    fn disable_basic_irq(&self, hwirq: u32) {
+        let disable_basic_irqs_reg = (self.reg_base + DISABLE_BASIC_IRQS_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(disable_basic_irqs_reg, 1 << hwirq);
+        }
+    }
+
+    fn disable_irq_1(&self, hwirq: u32) {
+        let disable_irqs_1_reg = (self.reg_base + DISABLE_IRQS_1_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(disable_irqs_1_reg, 1 << (hwirq - HWIRQ_1_RANGE_START));
+        }
+    }
+
+    fn disable_irq_2(&self, hwirq: u32) {
+        let disable_irqs_2_reg = (self.reg_base + DISABLE_IRQS_2_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(disable_irqs_2_reg, 1 << (hwirq - HWIRQ_2_RANGE_START));
+        }
+    }
 }
 
 impl InterruptController for InterruptControllerDevice {
-    fn set_virq_base(&self, virq_base: u32) {
-        let _ = self.virq_base.set(virq_base);
+    fn set_virq_base(&self, virq_base: u32) -> IrqResult<()> {
+        self.virq_base
+            .set(virq_base)
+            .map_err(|_| IrqError::InvalidVirq)
     }
 
     fn enable(&self, hwirq: u32) {
-        todo!()
+        match hwirq {
+            HWIRQ_BASIC_RANGE_START..=HWIRQ_BASIC_RANGE_END => self.enable_basic_irq(hwirq),
+            HWIRQ_1_RANGE_START..=HWIRQ_1_RANGE_END => self.enable_irq_1(hwirq),
+            HWIRQ_2_RANGE_START..=HWIRQ_2_RANGE_END => self.enable_irq_2(hwirq),
+            _ => unreachable!(),
+        }
     }
 
     fn disable(&self, hwirq: u32) {
-        todo!()
+        match hwirq {
+            HWIRQ_BASIC_RANGE_START..=HWIRQ_BASIC_RANGE_END => self.disable_basic_irq(hwirq),
+            HWIRQ_1_RANGE_START..=HWIRQ_1_RANGE_END => self.disable_irq_1(hwirq),
+            HWIRQ_2_RANGE_START..=HWIRQ_2_RANGE_END => self.disable_irq_2(hwirq),
+            _ => unreachable!(),
+        }
     }
 
     fn pending_hwirq(&self) -> Option<u32> {
-        todo!()
-    }
+        let irq_basic_pending_reg = (self.reg_base + IRQ_BASIC_PENDING_REG_OFFSET) as *const u32;
+        let pending_basic = unsafe { irq_basic_pending_reg.read_volatile() };
 
-    fn ack(&self, hwirq: u32) {
-        todo!()
+        if pending_basic == 0 {
+            return None;
+        }
+
+        let next = pending_basic.trailing_zeros();
+        match next {
+            HWIRQ_BASIC_RANGE_START..=HWIRQ_BASIC_RANGE_END => Some(next),
+            8 => {
+                let irq_pending_1_reg = (self.reg_base + IRQ_PENDING_1_REG_OFFSET) as *const u32;
+                let pending_1 = unsafe { irq_pending_1_reg.read_volatile() };
+
+                // should not happen, but just in case
+                if pending_1 == 0 {
+                    return None;
+                }
+
+                Some(pending_1.trailing_zeros() + HWIRQ_1_RANGE_START)
+            }
+            9 => {
+                let irq_pending_2_reg = (self.reg_base + IRQ_PENDING_2_REG_OFFSET) as *const u32;
+                let pending_2 = unsafe { irq_pending_2_reg.read_volatile() };
+
+                // should not happen, but just in case
+                if pending_2 == 0 {
+                    return None;
+                }
+
+                Some(pending_2.trailing_zeros() + HWIRQ_2_RANGE_START)
+            }
+            // selected interrupts
+            10 => Some(next - 3 + HWIRQ_1_RANGE_START),
+            11..=12 => Some(next - 2 + HWIRQ_1_RANGE_START),
+            13..=14 => Some(next + 5 + HWIRQ_1_RANGE_START),
+            15..=19 => Some(next + 38 + HWIRQ_1_RANGE_START),
+            20 => Some(next + 42 + HWIRQ_2_RANGE_START),
+            _ => unreachable!(),
+        }
     }
 
     fn xlate(&self, specifier: &InterruptSpecifier) -> IrqResult<u32> {
-        todo!()
+        let bank = specifier.0.get(0).ok_or(IrqError::TranslationFailed)?;
+        let int_num = specifier.0.get(1).ok_or(IrqError::TranslationFailed)?;
+
+        match bank {
+            0 => {
+                if *int_num > HWIRQ_BASIC_RANGE_END {
+                    return Err(IrqError::TranslationFailed);
+                }
+                Ok(*int_num)
+            }
+            1 => {
+                let hwirq = *int_num + HWIRQ_1_RANGE_START;
+                if hwirq > HWIRQ_1_RANGE_END {
+                    return Err(IrqError::TranslationFailed);
+                }
+                Ok(hwirq)
+            }
+            2 => {
+                let hwirq = *int_num + HWIRQ_2_RANGE_START;
+                if hwirq > HWIRQ_2_RANGE_END {
+                    return Err(IrqError::TranslationFailed);
+                }
+                Ok(hwirq)
+            }
+            _ => Err(IrqError::TranslationFailed),
+        }
     }
 }
 
@@ -221,14 +256,9 @@ impl PlatformDriver for InterruptControllerDriver {
             return Err(DriverInitError::DeviceTreeError);
         }
 
-        let reg = reg.first().ok_or(DriverInitError::DeviceTreeError)?;
-        let phys_addr = reg
-            .address_as_usize()
-            .map_err(|_| DriverInitError::DeviceTreeError)?;
-        let length = reg
-            .length_as_usize()
-            .map_err(|_| DriverInitError::DeviceTreeError)?;
-
+        let (phys_addr, length) = node
+            .resolve_phys_address_and_length()
+            .ok_or(DriverInitError::DeviceTreeError)?;
         kprintln!(
             "[{}] reg: phys_addr=0x{:x}, length=0x{:x}",
             self.compatible(),
