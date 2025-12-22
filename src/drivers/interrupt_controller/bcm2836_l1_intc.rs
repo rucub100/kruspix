@@ -36,22 +36,8 @@ mod hwirq {
     pub const HWIRQ_LOCAL_TIMER: u32 = 11;
 }
 
-// Core related interrupts
-const CORE_RELATED_DEST_NONE: u32 = 0;
-const CORE_RELATED_DEST_IRQ: u32 = 1;
-// we do not support FIQ for now
-// const CORE_RELATED_DEST_FIQ: u32 = 2;
-
 // Core un-related interrupts
 const CORE_UNRELATED_DEST_IRQ_CORE_0: u32 = 0;
-const CORE_UNRELATED_DEST_IRQ_CORE_1: u32 = 1;
-const CORE_UNRELATED_DEST_IRQ_CORE_2: u32 = 2;
-const CORE_UNRELATED_DEST_IRQ_CORE_3: u32 = 3;
-// we do not support FIQ for now
-// const CORE_UNRELATED_DEST_FIQ_CORE_0: u32 = 4;
-// const CORE_UNRELATED_DEST_FIQ_CORE_1: u32 = 5;
-// const CORE_UNRELATED_DEST_FIQ_CORE_2: u32 = 6;
-// const CORE_UNRELATED_DEST_FIQ_CORE_3: u32 = 7;
 
 // Registers
 const GPU_INT_ROUTING_REG_OFFSET: usize = 0xc;
@@ -63,8 +49,7 @@ const LOCAL_TIMER_CTRL_AND_STATUS_REG_OFFSET: usize = 0x34;
 const CORE_TIMERS_INT_CTRL_REG_OFFSET: usize = 0x40;
 const CORE_MBOX_INT_CTRL_REG_OFFSET: usize = 0x50;
 const CORE_IRQ_SOURCE_REG_OFFSET: usize = 0x60;
-// we do not support FIQ for now
-// const CORE_FIQ_SOURCE_REG_OFFSET: usize = 0x70;
+
 
 pub struct InterruptControllerDriver;
 

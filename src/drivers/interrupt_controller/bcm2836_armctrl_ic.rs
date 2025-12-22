@@ -1,3 +1,6 @@
+use alloc::sync::Arc;
+use core::ptr::write_volatile;
+
 use crate::drivers::{DriverInitError, PlatformDriver};
 use crate::kernel::devicetree::interrupts::{
     InterruptControllerNode, InterruptControllerOrNexusNode, InterruptGeneratingNode,
@@ -12,8 +15,6 @@ use crate::kernel::irq::{
 use crate::kernel::sync::OnceLock;
 use crate::kprintln;
 use crate::mm::map_io_region;
-use alloc::sync::Arc;
-use core::ptr::write_volatile;
 
 const HWIRQ_COUNT: u32 = 72;
 const HWIRQ_BASIC_RANGE_START: u32 = 0;
