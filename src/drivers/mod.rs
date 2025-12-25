@@ -1,4 +1,3 @@
-use alloc::string::ToString;
 use alloc::vec::Vec;
 
 use crate::kernel::devicetree::std_prop::StatusValue;
@@ -70,13 +69,6 @@ pub fn init_platform_drivers() {
         .filter(|node| {
             node.status().is_none_or(|status_value| {
                 let compatible_list = node.compatible().unwrap();
-
-                // TODO: remove this testing code
-                if compatible_list
-                    .contains(&timer::bcm2835_system_timer::DRIVER.compatible().to_string())
-                {
-                    return true;
-                }
 
                 match status_value {
                     StatusValue::Okay => true,
