@@ -19,6 +19,7 @@ pub mod interrupts;
 pub mod node;
 pub mod prop;
 pub mod std_prop;
+pub mod misc_prop;
 
 static FDT_ADDR: AtomicUsize = AtomicUsize::new(0);
 static DEVICE_TREE: OnceLock<Arc<DeviceTree>> = OnceLock::new();

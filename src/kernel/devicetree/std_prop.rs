@@ -283,7 +283,7 @@ pub enum StandardProperty {
 }
 
 impl StandardProperty {
-    pub fn as_str(&self) -> &str {
+        pub fn as_str(&self) -> &str {
         match self {
             StandardProperty::Compatible(_) => COMPATIBLE,
             StandardProperty::Model(_) => MODEL,

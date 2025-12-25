@@ -1,9 +1,3 @@
-use alloc::boxed::Box;
-use alloc::string::String;
-use alloc::vec::Vec;
-use core::iter;
-use core::ptr::NonNull;
-
 use super::PHandle;
 use super::interrupts::{
     ExtendedInterrupts, INTERRUPT_CELLS, INTERRUPT_CONTROLLER, INTERRUPT_MAP, INTERRUPT_MAP_MASK,
@@ -21,6 +15,14 @@ use super::std_prop::{
     AddressCellsValue, CompatibleValue, DmaRangesValue, RangesValue, RegValue, SizeCellsValue,
     StandardProperty, StatusValue,
 };
+use crate::kernel::devicetree::misc_prop::{
+    CLOCK_FREQUENCY, ClockFrequency, MiscellaneousProperties, MiscellaneousProperty,
+};
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::iter;
+use core::ptr::NonNull;
 
 // Base Device Node Types
 pub const ROOT: &'static str = "";
@@ -387,6 +389,20 @@ impl InterruptControllerOrNexusNode for Node {
                 PropertyValue::Interrupts(InterruptsProperty::InterruptCells(cells)) => {
                     Some(*cells)
                 }
+                _ => unreachable!(),
+            })
+    }
+}
+
+impl MiscellaneousProperties for Node {
+    fn clock_frequency(&self) -> Option<&ClockFrequency> {
+        self.properties
+            .iter()
+            .find(|p| p.name() == CLOCK_FREQUENCY)
+            .and_then(|p| match p.value() {
+                PropertyValue::Miscellaneous(MiscellaneousProperty::ClockFrequency(
+                    clock_frequency,
+                )) => Some(clock_frequency),
                 _ => unreachable!(),
             })
     }

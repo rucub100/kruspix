@@ -9,7 +9,7 @@ use crate::kernel::devicetree::interrupts::{
 };
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
-use crate::kernel::sync::{OnceLock, SpinLock};
+use crate::kernel::sync::{OnceLock, SpinLock, without_irq_fiq};
 
 #[derive(Debug, Clone, Copy)]
 pub enum IrqError {
@@ -23,7 +23,9 @@ pub enum IrqError {
 pub type IrqResult<T> = Result<T, IrqError>;
 
 pub trait InterruptController: Send + Sync {
-    fn set_virq_base(&self, _virq_base: u32) -> IrqResult<()> { Ok(()) }
+    fn set_virq_base(&self, _virq_base: u32) -> IrqResult<()> {
+        Ok(())
+    }
     fn enable(&self, hwirq: u32);
     fn disable(&self, hwirq: u32);
     /// Returns the pending interrupt's hardware IRQ number, if any
@@ -67,6 +69,7 @@ pub extern "C" fn global_irq_dispatch() {
     if let Some(root) = ROOT_CONTROLLER.get() {
         while let Some(hwirq) = root.controller.pending_hwirq() {
             dispatch_irq(root.virq_base + hwirq);
+            root.controller.ack(hwirq);
         }
     }
 }
@@ -77,6 +80,7 @@ pub fn dispatch_irq(virq: u32) {
     }
 
     let handler = {
+        // SAFETY: we are already in an IRQ context, so no need to disable IRQs again
         let handlers = IRQ_HANDLERS.lock();
         handlers[virq as usize].clone()
     };
@@ -135,7 +139,7 @@ pub fn register_controller(
             return Err(IrqError::InvalidControllerParent);
         }
     } else {
-        CONTROLLERS.lock().push(irq_domain);
+        CONTROLLERS.lock_irq().push(irq_domain);
     }
 
     Ok(())
@@ -146,14 +150,14 @@ pub fn register_handler(virq: u32, handler: Arc<dyn InterruptHandler>) -> IrqRes
         return Err(IrqError::InvalidVirq);
     }
 
-    let mut handlers = IRQ_HANDLERS.lock();
+    let mut handlers = IRQ_HANDLERS.lock_irq();
     if handlers[virq as usize].is_some() {
         return Err(IrqError::Busy);
     }
 
     handlers[virq as usize] = Some(handler);
 
-    let domains = CONTROLLERS.lock();
+    let domains = CONTROLLERS.lock_irq();
     let domain = ROOT_CONTROLLER
         .get()
         .into_iter()
@@ -177,12 +181,16 @@ pub fn resolve_virq(node: &Node, index: usize) -> IrqResult<u32> {
     let interrupts = node.interrupts().ok_or(IrqError::InvalidConfig)?;
 
     let dt = get_devicetree().ok_or(IrqError::InvalidConfig)?;
-    let int_parent_phandle = node.interrupt_parent();
-    let int_parent = if let Some(phandle) = int_parent_phandle {
-        dt.node_by_phandle(phandle).ok_or(IrqError::InvalidConfig)?
-    } else {
-        node.parent().ok_or(IrqError::InvalidControllerParent)?
-    };
+    let mut current = Some(node);
+    let mut int_parent_node = None;
+    while let Some(n) = current {
+        if let Some(phandle) = n.interrupt_parent() {
+            int_parent_node = dt.node_by_phandle(phandle);
+            break;
+        }
+        current = n.parent();
+    }
+    let int_parent = int_parent_node.ok_or(IrqError::InvalidControllerParent)?;
 
     if !int_parent.is_interrupt_controller() {
         return Err(IrqError::InvalidControllerParent);
@@ -202,7 +210,7 @@ pub fn resolve_virq(node: &Node, index: usize) -> IrqResult<u32> {
         .ok_or(IrqError::InvalidConfig)?;
 
     let node_addr = int_parent as *const _ as usize;
-    let domains = CONTROLLERS.lock();
+    let domains = CONTROLLERS.lock_irq();
     let domain = ROOT_CONTROLLER
         .get()
         .into_iter()

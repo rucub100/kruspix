@@ -1,0 +1,1 @@
+//! Specialized timer that resets the system if kernel hangs

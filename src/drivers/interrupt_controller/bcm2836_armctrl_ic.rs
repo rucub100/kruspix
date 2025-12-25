@@ -215,6 +215,7 @@ impl InterruptHandler for InterruptControllerDevice {
             && let Some(virq_base) = self.virq_base.get()
         {
             dispatch_irq(virq_base + hwirq);
+            // SAFETY: acknowledge is a no-op for this controller
         }
     }
 }
@@ -273,7 +274,7 @@ impl PlatformDriver for InterruptControllerDriver {
 
         register_controller(node, dev.clone(), HWIRQ_COUNT).map_err(|_| DriverInitError::Retry)?;
 
-        if node.interrupts().is_some() {
+        if node.interrupts().is_some() || node.interrupts_extended().is_some() {
             let parent_virq = resolve_virq(node, 0).map_err(|_| DriverInitError::Retry)?;
             register_handler(parent_virq, dev).map_err(|_| DriverInitError::Retry)?;
         }

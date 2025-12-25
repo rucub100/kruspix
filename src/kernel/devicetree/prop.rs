@@ -2,6 +2,7 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::ffi::CStr;
 
+use crate::kernel::devicetree::misc_prop::{ClockFrequency, MiscellaneousProperty};
 use super::PHandle;
 use super::fdt::raw_prop::RawProp;
 use super::interrupts::{
@@ -15,6 +16,7 @@ use super::std_prop::{
     DmaRangesItemValue, MODEL, PHANDLE, RANGES, REG, RangesItemValue, RegItemValue, SIZE_CELLS,
     STATUS, SizeCellsValue, StandardProperties, StandardProperty, VIRTUAL_REG,
 };
+use super::misc_prop::{CLOCK_FREQUENCY};
 
 #[derive(Debug)]
 pub struct Property {
@@ -175,6 +177,14 @@ impl Property {
                         .collect(),
                 )))
             }
+            // Miscellaneous Properties
+            CLOCK_FREQUENCY => {  PropertyValue::Miscellaneous(MiscellaneousProperty::ClockFrequency(
+                match prop.value().len() {
+                    4 => ClockFrequency::U32(prop.value_as_u32().unwrap()),
+                    8 => ClockFrequency::U64(prop.value_as_u64().unwrap()),
+                    _ => unreachable!()
+                }
+            )) }
             // Fallbacks
             _ if prop.value().is_empty() => PropertyValue::Empty,
             _ => PropertyValue::Unknown(UnknownProperty(prop.value().to_vec())),
@@ -199,6 +209,7 @@ impl Property {
 pub enum PropertyValue {
     Standard(StandardProperty),
     Interrupts(InterruptsProperty),
+    Miscellaneous(MiscellaneousProperty),
     Unknown(UnknownProperty),
     Empty,
 }

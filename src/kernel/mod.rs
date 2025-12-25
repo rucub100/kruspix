@@ -9,6 +9,7 @@ pub mod print;
 pub mod sched;
 pub mod sync;
 pub mod time;
+mod watchdog;
 
 pub fn kernel_addr_size() -> (usize, usize) {
     let kernel_start: usize;

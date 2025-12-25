@@ -1,3 +1,4 @@
+use crate::arch::cpu::{disable_irq_fiq, restore_interrupts};
 use core::cell::UnsafeCell;
 use core::hint::spin_loop;
 use core::ops::{Deref, DerefMut};
@@ -27,14 +28,46 @@ impl<T> SpinLock<T> {
             spin_loop();
         }
 
-        SpinLockGuard { lock: self }
+        SpinLockGuard {
+            lock: self,
+            irq_handle: None,
+        }
+    }
+
+    pub fn lock_irq(&self) -> SpinLockGuard<'_, T> {
+        let handle = disable_irq_fiq();
+
+        while self.lock.swap(true, Ordering::Acquire) {
+            spin_loop();
+        }
+
+        SpinLockGuard {
+            lock: self,
+            irq_handle: Some(handle),
+        }
     }
 
     pub fn try_lock(&self) -> Option<SpinLockGuard<'_, T>> {
         if self.lock.swap(true, Ordering::Acquire) {
             None
         } else {
-            Some(SpinLockGuard { lock: self })
+            Some(SpinLockGuard {
+                lock: self,
+                irq_handle: None,
+            })
+        }
+    }
+
+    pub fn try_lock_irq(&self) -> Option<SpinLockGuard<'_, T>> {
+        let handle = disable_irq_fiq();
+        if self.lock.swap(true, Ordering::Acquire) {
+            unsafe { restore_interrupts(handle) };
+            None
+        } else {
+            Some(SpinLockGuard {
+                lock: self,
+                irq_handle: Some(handle),
+            })
         }
     }
 }
@@ -47,11 +80,18 @@ unsafe impl<T: Send> Send for SpinLock<T> {}
 /// A guard that releases the spin lock when dropped.
 pub struct SpinLockGuard<'a, T> {
     lock: &'a SpinLock<T>,
+    irq_handle: Option<usize>,
 }
 
 impl<T> Drop for SpinLockGuard<'_, T> {
     fn drop(&mut self) {
         self.lock.lock.store(false, Ordering::Release);
+        if let Some(handle) = self.irq_handle {
+            // SAFETY: We disabled interrupts when acquiring the lock.
+            unsafe {
+                restore_interrupts(handle);
+            }
+        }
     }
 }
 

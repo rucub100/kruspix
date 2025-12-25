@@ -1,5 +1,7 @@
+use alloc::string::ToString;
 use alloc::vec::Vec;
 
+use crate::kernel::devicetree::std_prop::StatusValue;
 use crate::kernel::devicetree::{
     fdt::Fdt, get_devicetree, node::Node, std_prop::StandardProperties,
 };
@@ -48,10 +50,12 @@ pub trait PlatformDriver {
 }
 
 pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
-    // interrupt controllers
+    // interrupt controller
     &interrupt_controller::bcm2836_l1_intc::DRIVER,
     &interrupt_controller::bcm2836_armctrl_ic::DRIVER,
-    // serial devices
+    // timer
+    &timer::bcm2835_system_timer::DRIVER,
+    // serial
     &serial::bcm2835_aux_uart::DRIVER,
 ];
 
@@ -63,6 +67,47 @@ pub fn init_platform_drivers() {
         .root()
         .iter()
         .filter(|node| node.compatible().is_some())
+        .filter(|node| {
+            node.status().is_none_or(|status_value| {
+                let compatible_list = node.compatible().unwrap();
+
+                // TODO: remove this testing code
+                if compatible_list
+                    .contains(&timer::bcm2835_system_timer::DRIVER.compatible().to_string())
+                {
+                    return true;
+                }
+
+                match status_value {
+                    StatusValue::Okay => true,
+                    StatusValue::Reserved => {
+                        kprintln!(
+                            "Device {} compatible with {:?} is reserved",
+                            node.path(),
+                            compatible_list
+                        );
+                        false
+                    }
+                    StatusValue::Disabled => {
+                        kprintln!(
+                            "Device {} compatible with {:?} is disabled",
+                            node.path(),
+                            compatible_list
+                        );
+                        false
+                    }
+                    StatusValue::Fail(fail) => {
+                        kprintln!(
+                            "Device {} compatible with {:?} has failed status {}",
+                            node.path(),
+                            compatible_list,
+                            fail
+                        );
+                        false
+                    }
+                }
+            })
+        })
         .collect();
 
     kprintln!("Match devices from Device Tree:");
