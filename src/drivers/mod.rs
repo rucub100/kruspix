@@ -8,6 +8,7 @@ use crate::kernel::devicetree::{
     fdt::Fdt, get_devicetree, node::Node, std_prop::StandardProperties,
 };
 use crate::kernel::sync::SpinLock;
+use crate::kernel::time::Alarm;
 use crate::kprintln;
 
 mod bluetooth;
@@ -37,26 +38,28 @@ pub enum DriverInitError {
     ToDo,
 }
 
-pub trait Device {
-    fn global_setup(&self);
-    fn local_setup(&self);
-    fn path(&self) -> &str;
+pub trait Device: Send + Sync {
+    fn id(&self) -> &str;
+    fn global_setup(self: Arc<Self>, node: &Node) -> Result<(), DriverInitError>;
+    fn local_setup(self: Arc<Self>) -> Result<(), DriverInitError>;
 }
 
-pub trait PlatformDriver {
+pub trait PlatformDriver: Send + Sync {
     /// Returns the compatible string that this driver supports.
     fn compatible(&self) -> &str;
 
     /// Driver's factory method to initialize a device instance from a device tree node.
     fn try_init(&self, node: &Node) -> Result<(), DriverInitError>;
 
-    fn get_device(&self, node: &Node) -> Option<Arc<dyn Device>>;
+    fn get_device(&self, id: &str) -> Option<Arc<dyn Device>>;
 
     /// Optional per-core local initialization method, maybe called during core boot.
-    fn local_init(&self, node: &Node) {
-        if let Some(device) = self.get_device(node) {
-            device.local_setup();
+    fn local_init(&self, id: &str) -> Result<(), DriverInitError> {
+        if let Some(device) = self.get_device(id) {
+            device.local_setup()?;
         }
+
+        Ok(())
     }
 
     /// Optional static initialization method, maybe called during early boot.
@@ -84,29 +87,26 @@ where
         }
     }
 
-    pub fn add_device(&self, node: &Node, device: Arc<T>) {
+    pub fn add_device(&self, id: String, device: Arc<T>) {
         let mut devices = self.devices.lock_irq();
-        devices.insert(node.path(), device);
+        devices.insert(id, device);
     }
 
-    pub fn remove_device(&self, node: &Node) -> Option<Arc<T>> {
+    pub fn remove_device(&self, id: &str) -> Option<Arc<T>> {
         let mut devices = self.devices.lock_irq();
-        devices.remove(&node.path())
+        devices.remove(id)
     }
 
-    pub fn get_device(&self, node: &Node) -> Option<Arc<T>> {
+    pub fn get_device(&self, id: &str) -> Option<Arc<T>> {
         let devices = self.devices.lock_irq();
-        devices.get(&node.path()).cloned()
+        devices.get(id).cloned()
     }
 }
 
 impl<T: Device + 'static> DriverRegistry<T> {
-    pub fn get_device_opaque(&self, node: &Node) -> Option<Arc<dyn Device>> {
+    pub fn get_device_opaque(&self, id: &str) -> Option<Arc<dyn Device>> {
         let devices = self.devices.lock_irq();
-        devices
-            .get(&node.path())
-            .cloned()
-            .map(|dev| dev as Arc<dyn Device>)
+        devices.get(id).cloned().map(|dev| dev as Arc<dyn Device>)
     }
 }
 
@@ -115,10 +115,43 @@ pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     &interrupt_controller::bcm2836_l1_intc::DRIVER,
     &interrupt_controller::bcm2836_armctrl_ic::DRIVER,
     // timer
+    &timer::arm_generic_timer::DRIVER,
     &timer::bcm2835_system_timer::DRIVER,
     // serial
     &serial::bcm2835_aux_uart::DRIVER,
 ];
+
+pub struct DeviceManager {
+    bindings: SpinLock<Vec<(&'static dyn PlatformDriver, String)>>,
+}
+
+impl DeviceManager {
+    pub const fn new() -> Self {
+        DeviceManager {
+            bindings: SpinLock::new(Vec::new()),
+        }
+    }
+
+    pub fn register_device(&self, driver: &'static dyn PlatformDriver, path: String) {
+        let mut bindings = self.bindings.lock_irq();
+        bindings.push((driver, path));
+    }
+
+    pub fn init_local_devices(&self) -> Result<(), DriverInitError> {
+        let bindings = self.bindings.lock_irq();
+
+        for (driver, id) in bindings.iter() {
+            driver.local_init(id)?;
+        }
+
+        Ok(())
+    }
+}
+
+unsafe impl Send for DeviceManager {}
+unsafe impl Sync for DeviceManager {}
+
+static DEVICE_MANAGER: DeviceManager = DeviceManager::new();
 
 pub fn init_platform_drivers() {
     kprintln!("Initializing platform drivers...");
@@ -175,6 +208,7 @@ pub fn init_platform_drivers() {
                 return match driver.try_init(node) {
                     Ok(_) => {
                         kprintln!("-> Driver initialized successfully");
+                        DEVICE_MANAGER.register_device(driver, node.path());
                         progress = true;
                         false
                     }
@@ -195,7 +229,7 @@ pub fn init_platform_drivers() {
     }
 }
 
-fn match_driver(node: &Node) -> Option<&dyn PlatformDriver> {
+fn match_driver(node: &Node) -> Option<&'static dyn PlatformDriver> {
     let compatible_list = node.compatible()?;
 
     kprintln!("Node {} compatible with {:?}", node.path(), compatible_list);

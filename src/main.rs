@@ -2,9 +2,10 @@
 #![no_main]
 extern crate alloc;
 
-use kruspix::arch::cpu::enable_irq_fiq;
+use kruspix::arch::cpu::local_enable_irq_fiq;
 use kruspix::arch::{kernel::setup::setup_arch, mm::mmu::setup_page_tables};
 use kruspix::drivers::init_platform_drivers;
+use kruspix::kernel::cpu::init_local_data;
 use kruspix::kernel::devicetree::init_devicetree;
 use kruspix::mm::init_heap;
 use kruspix::{kprint, kprintln};
@@ -17,10 +18,11 @@ pub extern "C" fn start_kernel() -> ! {
     setup_arch();
     setup_page_tables();
     init_heap();
+    init_local_data();
     init_devicetree();
     init_platform_drivers();
 
-    enable_irq_fiq();
+    local_enable_irq_fiq();
 
     // TODO: memory management setup
     // TODO: interrupts/exceptions setup

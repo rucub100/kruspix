@@ -1,2 +1,2 @@
 pub mod bcm2835_system_timer;
-pub mod armv7_timer;
+pub mod arm_generic_timer;

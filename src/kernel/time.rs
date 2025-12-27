@@ -1,9 +1,8 @@
+use crate::kernel::cpu::get_local_data;
+use crate::kernel::sync::SpinLock;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::time::Duration;
-
-use crate::kernel::irq::{InterruptHandler, register_handler};
-use crate::kernel::sync::SpinLock;
 
 const NANOS_PER_SEC: u128 = 1_000_000_000;
 
@@ -79,15 +78,15 @@ pub trait Alarm: Send + Sync {
 
 pub trait RealTimeClock: Send + Sync {}
 
-static TIMERS: SpinLock<Vec<Arc<dyn Timer>>> = SpinLock::new(Vec::new());
-static SYSTEM_TIMER: SpinLock<Option<Arc<dyn Timer>>> = SpinLock::new(None);
-static ALARMS: SpinLock<Vec<Arc<dyn Alarm>>> = SpinLock::new(Vec::new());
-static SYSTEM_ALARM: SpinLock<Option<Arc<dyn Alarm>>> = SpinLock::new(None);
+static GLOBAL_TIMERS: SpinLock<Vec<Arc<dyn Timer>>> = SpinLock::new(Vec::new());
+static GLOBAL_SYSTEM_TIMER: SpinLock<Option<Arc<dyn Timer>>> = SpinLock::new(None);
+static GLOBAL_ALARMS: SpinLock<Vec<Arc<dyn Alarm>>> = SpinLock::new(Vec::new());
+static GLOBAL_SYSTEM_ALARM: SpinLock<Option<Arc<dyn Alarm>>> = SpinLock::new(None);
 
-pub fn register_timer(timer: Arc<dyn Timer>) {
-    TIMERS.lock_irq().push(timer.clone());
+pub fn register_global_timer(timer: Arc<dyn Timer>) {
+    GLOBAL_TIMERS.lock_irq().push(timer.clone());
 
-    let mut system_timer = SYSTEM_TIMER.lock_irq();
+    let mut system_timer = GLOBAL_SYSTEM_TIMER.lock_irq();
     if match &*system_timer {
         Some(existing_timer) => timer.resolution() < existing_timer.resolution(),
         None => true,
@@ -96,10 +95,10 @@ pub fn register_timer(timer: Arc<dyn Timer>) {
     }
 }
 
-pub fn register_alarm(alarm: Arc<dyn Alarm>) {
-    ALARMS.lock_irq().push(alarm.clone());
+pub fn register_global_alarm(alarm: Arc<dyn Alarm>) {
+    GLOBAL_ALARMS.lock_irq().push(alarm.clone());
 
-    let mut system_alarm = SYSTEM_ALARM.lock_irq();
+    let mut system_alarm = GLOBAL_SYSTEM_ALARM.lock_irq();
     if match &*system_alarm {
         Some(existing_alarm) => alarm.resolution() < existing_alarm.resolution(),
         None => true,
@@ -108,38 +107,14 @@ pub fn register_alarm(alarm: Arc<dyn Alarm>) {
     }
 }
 
+pub fn register_local_alarm(alarm: Arc<dyn Alarm>) {
+    assert!(get_local_data().set_alarm(alarm).is_ok());
+}
+
 pub fn uptime() -> Duration {
-    SYSTEM_TIMER
+    GLOBAL_SYSTEM_TIMER
         .lock_irq()
         .as_ref()
         .map(|timer| timer.uptime())
         .unwrap_or(Duration::ZERO)
-}
-
-pub fn test_alarm(duration: Duration, callback: Arc<dyn InterruptHandler>) {
-    let system_timer = SYSTEM_TIMER.lock_irq();
-    let system_timer = system_timer.as_ref();
-    let system_alarm = SYSTEM_ALARM.lock_irq();
-    let system_alarm = system_alarm.as_ref();
-
-    if let Some(system_timer) = system_timer
-        && let Some(system_alarm) = system_alarm
-    {
-        system_alarm.cancel();
-        register_handler(system_alarm.virq(), callback).unwrap();
-        let ticks = system_alarm.duration_to_ticks(duration);
-        let ticks_verified = system_alarm
-            .duration_to_ticks(duration.max(system_alarm.min_duration()))
-            .min(system_alarm.max_ticks());
-        assert_eq!(ticks, ticks_verified);
-        let ticks = system_timer.counter().wrapping_add(ticks) % system_alarm.max_ticks();
-        system_alarm.schedule_at(ticks);
-    }
-}
-
-pub fn cancel_alarm() {
-    let system_alarm = SYSTEM_ALARM.lock_irq();
-    if let Some(system_alarm) = system_alarm.as_ref() {
-        system_alarm.cancel();
-    }
 }

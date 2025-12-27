@@ -147,6 +147,7 @@ extern "C" fn _start_el2() {
         "mov x4, (1 << 31)",
         "msr hcr_el2, x4",
         // TODO: CNTKCTL_EL2 - access control for timers
+        // TODO: CNTVOFF_EL2 - make sure offset is zero
         // Architectural Feature Trap - don't trap any
         "mov x4, xzr",
         "msr cptr_el2, x4",

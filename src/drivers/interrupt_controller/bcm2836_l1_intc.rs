@@ -1,4 +1,3 @@
-use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::sync::Arc;
 use core::mem::size_of;
@@ -12,7 +11,7 @@ use crate::kernel::devicetree::interrupts::{
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
 use crate::kernel::irq::{InterruptController, IrqError, IrqResult, register_controller};
-use crate::kernel::sync::{SpinLock, with_addr_lock, without_irq_fiq};
+use crate::kernel::sync::{with_addr_lock, without_irq_fiq};
 use crate::kprintln;
 use crate::mm::map_io_region;
 
@@ -53,16 +52,13 @@ const CORE_MBOX_INT_CTRL_REG_OFFSET: usize = 0x50;
 const CORE_IRQ_SOURCE_REG_OFFSET: usize = 0x60;
 
 pub struct InterruptControllerDevice {
-    path: String,
+    id: String,
     reg_base: usize,
 }
 
 impl InterruptControllerDevice {
-    fn new(node: &Node, reg_base: usize) -> Self {
-        Self {
-            path: node.path(),
-            reg_base,
-        }
+    fn new(id: String, reg_base: usize) -> Self {
+        Self { id, reg_base }
     }
 
     #[inline]
@@ -110,14 +106,14 @@ impl InterruptControllerDevice {
         // 4 core mailbox interrupts
         assert!(hwirq >= 4);
         assert!(hwirq < 8);
-        self.update_core_related_reg(CORE_MBOX_INT_CTRL_REG_OFFSET, (hwirq - 4), true);
+        self.update_core_related_reg(CORE_MBOX_INT_CTRL_REG_OFFSET, hwirq - 4, true);
     }
 
     fn disable_mailbox_interrupt(&self, hwirq: u32) {
         // 4 core mailbox interrupts
         assert!(hwirq >= 4);
         assert!(hwirq < 8);
-        self.update_core_related_reg(CORE_MBOX_INT_CTRL_REG_OFFSET, (hwirq - 4), false);
+        self.update_core_related_reg(CORE_MBOX_INT_CTRL_REG_OFFSET, hwirq - 4, false);
     }
 
     fn enable_pmu_interrupt(&self) {
@@ -154,7 +150,11 @@ impl InterruptControllerDevice {
 }
 
 impl Device for InterruptControllerDevice {
-    fn global_setup(&self) {
+    fn id(&self) -> &str {
+        self.id.as_str()
+    }
+
+    fn global_setup(self: Arc<Self>, node: &Node) -> Result<(), DriverInitError> {
         // GPU interrupts routing to core 0 (FIQ + IRQ)
         let gpu_int_routing_reg = (self.reg_base + GPU_INT_ROUTING_REG_OFFSET) as *mut u32;
         unsafe {
@@ -189,9 +189,13 @@ impl Device for InterruptControllerDevice {
             value = value & !(1 << 29);
             write_volatile(local_timer_ctrl_and_status_reg, value);
         });
+
+        register_controller(node, self, hwirq::COUNT).map_err(|_| DriverInitError::Retry)?;
+
+        Ok(())
     }
 
-    fn local_setup(&self) {
+    fn local_setup(self: Arc<Self>) -> Result<(), DriverInitError> {
         let core_offset = core_id() * size_of::<u32>();
 
         // Core timer interrupt (disabled)
@@ -207,10 +211,8 @@ impl Device for InterruptControllerDevice {
         unsafe {
             write_volatile(core_mbox_int_ctrl_reg, 0);
         }
-    }
 
-    fn path(&self) -> &str {
-        self.path.as_str()
+        Ok(())
     }
 }
 
@@ -362,35 +364,28 @@ impl PlatformDriver for InterruptControllerDriver {
         );
 
         let addr = map_io_region(phys_addr, length);
-        let dev = InterruptControllerDevice::new(node, addr);
-
-        dev.global_setup();
-        // direct call for primary core is more efficient, secondary cores shall call local_init
-        dev.local_setup();
-
+        let dev = InterruptControllerDevice::new(node.path(), addr);
         let dev = Arc::new(dev);
-        self.dev_registry.add_device(node, dev.clone());
+        self.dev_registry.add_device(node.path(), dev.clone());
 
-        register_controller(node, dev, hwirq::COUNT).map_err(|_| DriverInitError::Retry)?;
+        dev.clone().global_setup(node)?;
+        dev.local_setup()?;
 
         kprintln!("[{}] initialized successfully", self.compatible());
 
         Ok(())
     }
 
-    fn get_device(&self, node: &Node) -> Option<Arc<dyn Device>> {
-        self.dev_registry.get_device_opaque(node)
+    fn get_device(&self, id: &str) -> Option<Arc<dyn Device>> {
+        self.dev_registry.get_device_opaque(id)
     }
 
-    fn local_init(&self, node: &Node) {
-        if let Some(dev) = self.dev_registry.get_device(node) {
-            dev.local_setup();
-        } else {
-            kprintln!(
-                "[WARNING][{}] local_init: device not found",
-                self.compatible()
-            );
+    fn local_init(&self, id: &str) -> Result<(), DriverInitError> {
+        if let Some(dev) = self.dev_registry.get_device(id) {
+            dev.local_setup()?;
         }
+
+        Ok(())
     }
 }
 

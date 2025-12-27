@@ -2,21 +2,21 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::ffi::CStr;
 
-use crate::kernel::devicetree::misc_prop::{ClockFrequency, MiscellaneousProperty};
 use super::PHandle;
 use super::fdt::raw_prop::RawProp;
 use super::interrupts::{
     ExtendedInterrupts, INTERRUPT_CELLS, INTERRUPT_CONTROLLER, INTERRUPT_MAP, INTERRUPT_MAP_MASK,
-    INTERRUPT_PARENT, INTERRUPTS, INTERRUPTS_EXTENDED, InterruptGeneratingNode, InterruptMap,
-    InterruptMapMask, Interrupts, InterruptsProperty,
+    INTERRUPT_PARENT, INTERRUPTS, INTERRUPTS_EXTENDED, InterruptMap, InterruptMapMask, Interrupts,
+    InterruptsProperty,
 };
+use super::misc_prop::CLOCK_FREQUENCY;
 use super::node::Node;
 use super::std_prop::{
     ADDRESS_CELLS, AddressCellsValue, COMPATIBLE, DMA_COHERENT, DMA_NONCOHERENT, DMA_RANGES,
     DmaRangesItemValue, MODEL, PHANDLE, RANGES, REG, RangesItemValue, RegItemValue, SIZE_CELLS,
     STATUS, SizeCellsValue, StandardProperties, StandardProperty, VIRTUAL_REG,
 };
-use super::misc_prop::{CLOCK_FREQUENCY};
+use crate::kernel::devicetree::misc_prop::{ClockFrequency, MiscellaneousProperty};
 
 #[derive(Debug)]
 pub struct Property {
@@ -178,13 +178,13 @@ impl Property {
                 )))
             }
             // Miscellaneous Properties
-            CLOCK_FREQUENCY => {  PropertyValue::Miscellaneous(MiscellaneousProperty::ClockFrequency(
+            CLOCK_FREQUENCY => PropertyValue::Miscellaneous(MiscellaneousProperty::ClockFrequency(
                 match prop.value().len() {
                     4 => ClockFrequency::U32(prop.value_as_u32().unwrap()),
                     8 => ClockFrequency::U64(prop.value_as_u64().unwrap()),
-                    _ => unreachable!()
-                }
-            )) }
+                    _ => unreachable!(),
+                },
+            )),
             // Fallbacks
             _ if prop.value().is_empty() => PropertyValue::Empty,
             _ => PropertyValue::Unknown(UnknownProperty(prop.value().to_vec())),

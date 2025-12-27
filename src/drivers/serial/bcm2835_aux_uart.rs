@@ -34,21 +34,21 @@ const AUX_MU_BAUD_REG_OFFSET: usize = 0x28;
 const TX_EMPTY: u32 = 1 << 5;
 
 struct MiniUartDevice {
-    path: String,
+    id: String,
     reg_base: usize,
 }
 
 impl Device for MiniUartDevice {
-    fn global_setup(&self) {
+    fn id(&self) -> &str {
+        self.id.as_str()
+    }
+
+    fn global_setup(self: Arc<Self>, _node: &Node) -> Result<(), DriverInitError> {
         todo!()
     }
 
-    fn local_setup(&self) {
+    fn local_setup(self: Arc<Self>) -> Result<(), DriverInitError> {
         todo!()
-    }
-
-    fn path(&self) -> &str {
-        self.path.as_str()
     }
 }
 
@@ -57,7 +57,6 @@ impl Console for MiniUartDevice {
         todo!()
     }
 }
-
 
 pub struct MiniUartDriver {
     reg_base: AtomicUsize,
@@ -103,7 +102,6 @@ impl Console for MiniUartDriver {
     }
 }
 
-
 impl PlatformDriver for MiniUartDriver {
     fn compatible(&self) -> &str {
         "brcm,bcm2835-aux-uart"
@@ -130,14 +128,14 @@ impl PlatformDriver for MiniUartDriver {
         for prop in node.properties() {
             kprintln!("-> Property: {}", prop.name());
         }
-        
+
         // TODO:
         // dev.global_setup();
 
         Err(DriverInitError::ToDo)
     }
 
-    fn get_device(&self, node: &Node) -> Option<Arc<dyn Device>> {
+    fn get_device(&self, id: &str) -> Option<Arc<dyn Device>> {
         todo!()
     }
 

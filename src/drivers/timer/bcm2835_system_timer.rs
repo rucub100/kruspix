@@ -5,7 +5,7 @@ use crate::drivers::{Device, DriverInitError, DriverRegistry, PlatformDriver};
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::{misc_prop::MiscellaneousProperties, std_prop::StandardProperties};
 use crate::kernel::irq::resolve_virq;
-use crate::kernel::time::{Alarm, Timer, register_alarm, register_timer};
+use crate::kernel::time::{Alarm, Timer, register_global_alarm, register_global_timer};
 use crate::kprintln;
 use crate::mm::map_io_region;
 
@@ -13,8 +13,8 @@ use crate::mm::map_io_region;
 const CS_REG_OFFSET: u32 = 0x00;
 /// Counter Register Offset (Lower 32 bits)
 const CLO_REG_OFFSET: u32 = 0x04;
-/// Counter Register Offset (Higher 32 bits)
-const CHI_REG_OFFSET: u32 = 0x08;
+// Counter Register Offset (Higher 32 bits)
+// const CHI_REG_OFFSET: u32 = 0x08;
 /// Compare 3
 ///
 /// # Safety
@@ -24,14 +24,18 @@ const C3_REG_OFFSET: u32 = 0x18;
 const CS_REG_M3_BIT: u32 = 1 << 3;
 
 pub struct TimerDevice {
-    path: String,
+    id: String,
     reg_base: usize,
     clock_frequency: u64,
     virq: u32,
 }
 
 impl Device for TimerDevice {
-    fn global_setup(&self) {
+    fn id(&self) -> &str {
+        self.id.as_str()
+    }
+
+    fn global_setup(self: Arc<Self>, _node: &Node) -> Result<(), DriverInitError> {
         // clear timer 3 channel comparator match
         // write 1 to clear the status and the corresponding irq line
         let cs_reg = (self.reg_base + CS_REG_OFFSET as usize) as *mut u32;
@@ -44,19 +48,22 @@ impl Device for TimerDevice {
         unsafe {
             c3_reg.write_volatile(0);
         }
+
+        register_global_timer(self.clone() as Arc<dyn Timer>);
+        register_global_alarm(self.clone() as Arc<dyn Alarm>);
+
+        Ok(())
     }
 
-    fn local_setup(&self) {}
-
-    fn path(&self) -> &str {
-        self.path.as_str()
+    fn local_setup(self: Arc<Self>) -> Result<(), DriverInitError> {
+        Ok(())
     }
 }
 
 impl TimerDevice {
-    fn new(node: &Node, reg_base: usize, clock_frequency: u64, virq: u32) -> Self {
+    fn new(id: String, reg_base: usize, clock_frequency: u64, virq: u32) -> Self {
         TimerDevice {
-            path: node.path(),
+            id,
             reg_base,
             clock_frequency,
             virq,
@@ -167,20 +174,16 @@ impl PlatformDriver for TimerDriver {
         let virq = resolve_virq(node, 3).map_err(|_| DriverInitError::Retry)?;
 
         let addr = map_io_region(phys_addr, length);
-        let dev = TimerDevice::new(node, addr, rate, virq);
-
-        dev.global_setup();
-
+        let dev = TimerDevice::new(node.path(), addr, rate, virq);
         let dev = Arc::new(dev);
 
-        register_timer(dev.clone());
-        register_alarm(dev);
+        dev.global_setup(node)?;
 
         Ok(())
     }
 
-    fn get_device(&self, node: &Node) -> Option<Arc<dyn Device>> {
-        self.dev_registry.get_device_opaque(node)
+    fn get_device(&self, id: &str) -> Option<Arc<dyn Device>> {
+        self.dev_registry.get_device_opaque(id)
     }
 }
 

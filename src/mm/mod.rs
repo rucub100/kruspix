@@ -115,22 +115,18 @@ pub fn dealloc_frame(ptr: *mut u8) {
 /// The returned memory is uninitialized.
 #[inline]
 pub fn alloc_page() -> *mut u8 {
-    unsafe {
-        let frame_ptr = alloc_frame();
+    let frame_ptr = alloc_frame();
 
-        if frame_ptr.is_null() {
-            return ptr::null_mut();
-        }
-
-        phys_to_virt(frame_ptr as usize) as *mut u8
+    if frame_ptr.is_null() {
+        return ptr::null_mut();
     }
+
+    phys_to_virt(frame_ptr as usize) as *mut u8
 }
 
 #[inline]
 pub fn dealloc_page(ptr: *mut u8) {
-    unsafe {
-        dealloc_frame(virt_to_phys(ptr as usize) as *mut u8);
-    }
+    dealloc_frame(virt_to_phys(ptr as usize) as *mut u8);
 }
 
 pub fn map_io_region(pa: usize, size: usize) -> usize {
@@ -138,9 +134,9 @@ pub fn map_io_region(pa: usize, size: usize) -> usize {
         IO_PERIPHERALS_MAP_OFFSET + pa + size
             <= IO_PERIPHERALS_MAP_OFFSET + IO_PERIPHERALS_MAP_SIZE
     );
-    
+
     let va = IO_PERIPHERALS_MAP_OFFSET + pa;
-    
+
     // align physical address down to page boundary
     let pa_aligned = pa & !(PAGE_SIZE - 1);
     let va_aligned = IO_PERIPHERALS_MAP_OFFSET + pa_aligned;

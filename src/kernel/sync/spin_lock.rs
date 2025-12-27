@@ -1,4 +1,4 @@
-use crate::arch::cpu::{disable_irq_fiq, restore_interrupts};
+use crate::arch::cpu::{local_disable_irq_fiq, local_restore_interrupts};
 use core::cell::UnsafeCell;
 use core::hint::spin_loop;
 use core::ops::{Deref, DerefMut};
@@ -35,7 +35,7 @@ impl<T> SpinLock<T> {
     }
 
     pub fn lock_irq(&self) -> SpinLockGuard<'_, T> {
-        let handle = disable_irq_fiq();
+        let handle = local_disable_irq_fiq();
 
         while self.lock.swap(true, Ordering::Acquire) {
             spin_loop();
@@ -59,9 +59,9 @@ impl<T> SpinLock<T> {
     }
 
     pub fn try_lock_irq(&self) -> Option<SpinLockGuard<'_, T>> {
-        let handle = disable_irq_fiq();
+        let handle = local_disable_irq_fiq();
         if self.lock.swap(true, Ordering::Acquire) {
-            unsafe { restore_interrupts(handle) };
+            unsafe { local_restore_interrupts(handle) };
             None
         } else {
             Some(SpinLockGuard {
@@ -89,7 +89,7 @@ impl<T> Drop for SpinLockGuard<'_, T> {
         if let Some(handle) = self.irq_handle {
             // SAFETY: We disabled interrupts when acquiring the lock.
             unsafe {
-                restore_interrupts(handle);
+                local_restore_interrupts(handle);
             }
         }
     }

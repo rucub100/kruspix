@@ -26,6 +26,7 @@ pub struct BitMapFrameAllocator {
 // from all cores. The allocator carries no thread-local state. 
 // Therefore, it is safe to transfer ownership of the allocator to another thread.
 unsafe impl Send for BitMapFrameAllocator {}
+unsafe impl Sync for BitMapFrameAllocator {}
 
 impl BitMapFrameAllocator {
     /// Create a new `BitMapFrameAllocator`.

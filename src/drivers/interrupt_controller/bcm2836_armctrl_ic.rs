@@ -10,8 +10,8 @@ use crate::kernel::devicetree::interrupts::{
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
 use crate::kernel::irq::{
-    InterruptController, InterruptHandler, IrqError, IrqResult, dispatch_irq, register_controller,
-    register_handler, resolve_virq,
+    InterruptController, InterruptHandler, IrqError, IrqResult, dispatch_irq, enable_irq,
+    register_controller, register_handler, resolve_virq,
 };
 use crate::kernel::sync::OnceLock;
 use crate::kprintln;
@@ -38,13 +38,17 @@ const DISABLE_IRQS_2_REG_OFFSET: usize = 0x20;
 const DISABLE_BASIC_IRQS_REG_OFFSET: usize = 0x24;
 
 pub struct InterruptControllerDevice {
-    path: String,
+    id: String,
     reg_base: usize,
     virq_base: OnceLock<u32>,
 }
 
 impl Device for InterruptControllerDevice {
-    fn global_setup(&self) {
+    fn id(&self) -> &str {
+        self.id.as_str()
+    }
+
+    fn global_setup(self: Arc<Self>, node: &Node) -> Result<(), DriverInitError> {
         // disable FIQ
         let fiq_ctrl_reg = (self.reg_base + FIQ_CTRL_REG_OFFSET) as *mut u32;
         unsafe {
@@ -60,19 +64,27 @@ impl Device for InterruptControllerDevice {
             write_volatile(disable_irqs_2_reg, u32::MAX);
             write_volatile(disable_basic_irqs_reg, u32::MAX);
         }
+
+        register_controller(node, self.clone(), HWIRQ_COUNT).map_err(|_| DriverInitError::Retry)?;
+
+        if node.interrupts().is_some() || node.interrupts_extended().is_some() {
+            let parent_virq = resolve_virq(node, 0).map_err(|_| DriverInitError::Retry)?;
+            register_handler(parent_virq, self).map_err(|_| DriverInitError::Retry)?;
+            enable_irq(parent_virq).map_err(|_| DriverInitError::Retry)?
+        }
+
+        Ok(())
     }
 
-    fn local_setup(&self) {}
-
-    fn path(&self) -> &str {
-        self.path.as_str()
+    fn local_setup(self: Arc<Self>) -> Result<(), DriverInitError> {
+        Ok(())
     }
 }
 
 impl InterruptControllerDevice {
-    fn new(node: &Node, reg_base: usize) -> Self {
+    fn new(id: String, reg_base: usize) -> Self {
         Self {
-            path: node.path(),
+            id,
             reg_base,
             virq_base: OnceLock::new(),
         }
@@ -291,26 +303,18 @@ impl PlatformDriver for InterruptControllerDriver {
         );
 
         let addr = map_io_region(phys_addr, length);
-        let dev = InterruptControllerDevice::new(node, addr);
-
-        dev.global_setup();
-
+        let dev = InterruptControllerDevice::new(node.path(), addr);
         let dev = Arc::new(dev);
 
-        register_controller(node, dev.clone(), HWIRQ_COUNT).map_err(|_| DriverInitError::Retry)?;
-
-        if node.interrupts().is_some() || node.interrupts_extended().is_some() {
-            let parent_virq = resolve_virq(node, 0).map_err(|_| DriverInitError::Retry)?;
-            register_handler(parent_virq, dev).map_err(|_| DriverInitError::Retry)?;
-        }
+        dev.global_setup(node)?;
 
         kprintln!("[{}] initialized successfully", self.compatible());
 
         Ok(())
     }
 
-    fn get_device(&self, node: &Node) -> Option<Arc<dyn Device>> {
-        self.dev_registry.get_device_opaque(node)
+    fn get_device(&self, id: &str) -> Option<Arc<dyn Device>> {
+        self.dev_registry.get_device_opaque(id)
     }
 }
 

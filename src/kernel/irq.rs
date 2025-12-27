@@ -9,7 +9,7 @@ use crate::kernel::devicetree::interrupts::{
 };
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
-use crate::kernel::sync::{OnceLock, SpinLock, without_irq_fiq};
+use crate::kernel::sync::{OnceLock, SpinLock};
 
 #[derive(Debug, Clone, Copy)]
 pub enum IrqError {
@@ -61,7 +61,7 @@ const MAX_IRQS: usize = 256;
 static NEXT_VIRQ_BASE: AtomicUsize = AtomicUsize::new(0);
 static ROOT_CONTROLLER: OnceLock<IrqDomain> = OnceLock::new();
 static CONTROLLERS: SpinLock<Vec<IrqDomain>> = SpinLock::new(Vec::new());
-static IRQ_HANDLERS: SpinLock<[Option<Arc<dyn InterruptHandler>>; MAX_IRQS]> =
+static GLOBAL_HANDLERS: SpinLock<[Option<Arc<dyn InterruptHandler>>; MAX_IRQS]> =
     SpinLock::new([const { None }; MAX_IRQS]);
 
 #[unsafe(no_mangle)]
@@ -81,7 +81,7 @@ pub fn dispatch_irq(virq: u32) {
 
     let handler = {
         // SAFETY: we are already in an IRQ context, so no need to disable IRQs again
-        let handlers = IRQ_HANDLERS.lock();
+        let handlers = GLOBAL_HANDLERS.lock();
         handlers[virq as usize].clone()
     };
 
@@ -150,13 +150,17 @@ pub fn register_handler(virq: u32, handler: Arc<dyn InterruptHandler>) -> IrqRes
         return Err(IrqError::InvalidVirq);
     }
 
-    let mut handlers = IRQ_HANDLERS.lock_irq();
+    let mut handlers = GLOBAL_HANDLERS.lock_irq();
     if handlers[virq as usize].is_some() {
         return Err(IrqError::Busy);
     }
 
     handlers[virq as usize] = Some(handler);
 
+    Ok(())
+}
+
+pub fn enable_irq(virq: u32) -> IrqResult<()> {
     let domains = CONTROLLERS.lock_irq();
     let domain = ROOT_CONTROLLER
         .get()

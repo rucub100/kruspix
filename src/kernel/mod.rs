@@ -9,13 +9,15 @@ pub mod print;
 pub mod sched;
 pub mod sync;
 pub mod time;
-mod watchdog;
+pub mod watchdog;
+pub mod cpu;
 
 pub fn kernel_addr_size() -> (usize, usize) {
     let kernel_start: usize;
     let kernel_end: usize;
 
     unsafe {
+        // FIXME: this is arch-specific code, move to arch/ module later
         core::arch::asm!("
             ldr {}, =_start
             ldr {}, =_end
@@ -30,6 +32,7 @@ pub fn kernel_bss_size() -> usize {
     let bss_end: usize;
 
     unsafe {
+        // FIXME: this is arch-specific code, move to arch/ module later
         core::arch::asm!("
             ldr {}, =__bss_start
             ldr {}, =__bss_end

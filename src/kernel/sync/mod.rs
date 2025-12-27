@@ -2,7 +2,7 @@ mod once_lock;
 mod spin_lock;
 
 use crate::common::hash::FibonacciHash;
-use crate::arch::cpu::{disable_interrupts, disable_irq_fiq, restore_interrupts};
+use crate::arch::cpu::{local_disable_interrupts, local_disable_irq_fiq, local_restore_interrupts};
 
 pub(crate) use once_lock::OnceLock;
 pub(crate) use spin_lock::SpinLock;
@@ -38,10 +38,10 @@ pub fn without_interrupts<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    let handle = disable_interrupts();
+    let handle = local_disable_interrupts();
     let result = f();
     // SAFETY: We just disabled interrupts and saved the previous state in `handle`.
-    unsafe { restore_interrupts(handle) };
+    unsafe { local_restore_interrupts(handle) };
     result
 }
 
@@ -50,9 +50,9 @@ pub fn without_irq_fiq<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    let handle = disable_irq_fiq();
+    let handle = local_disable_irq_fiq();
     let result = f();
     // SAFETY: We just disabled interrupts and saved the previous state in `handle`.
-    unsafe { restore_interrupts(handle) };
+    unsafe { local_restore_interrupts(handle) };
     result
 }

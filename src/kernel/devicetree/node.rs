@@ -156,7 +156,7 @@ impl Node {
 
                     if let (
                         Some(range_child_bus_addr),
-                        Some(range_parent_bus_addr),
+                        Some(_range_parent_bus_addr),
                         Some(range_length),
                     ) = (range_child_bus_addr, range_parent_bus_addr, range_length)
                     {
