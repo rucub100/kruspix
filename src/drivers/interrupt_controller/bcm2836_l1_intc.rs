@@ -1,16 +1,18 @@
+use alloc::collections::BTreeMap;
+use alloc::string::String;
 use alloc::sync::Arc;
 use core::mem::size_of;
 use core::ptr::{read_volatile, write_volatile};
 
 use crate::arch::cpu::core_id;
-use crate::drivers::{DriverInitError, PlatformDriver};
+use crate::drivers::{Device, DriverInitError, DriverRegistry, PlatformDriver};
 use crate::kernel::devicetree::interrupts::{
     InterruptControllerNode, InterruptControllerOrNexusNode, InterruptSpecifier,
 };
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
 use crate::kernel::irq::{InterruptController, IrqError, IrqResult, register_controller};
-use crate::kernel::sync::{with_addr_lock, without_irq_fiq};
+use crate::kernel::sync::{SpinLock, with_addr_lock, without_irq_fiq};
 use crate::kprintln;
 use crate::mm::map_io_region;
 
@@ -50,73 +52,17 @@ const CORE_TIMERS_INT_CTRL_REG_OFFSET: usize = 0x40;
 const CORE_MBOX_INT_CTRL_REG_OFFSET: usize = 0x50;
 const CORE_IRQ_SOURCE_REG_OFFSET: usize = 0x60;
 
-
-pub struct InterruptControllerDriver;
-
 pub struct InterruptControllerDevice {
+    path: String,
     reg_base: usize,
 }
 
 impl InterruptControllerDevice {
-    fn init(reg_base: usize) -> Self {
-        // GPU interrupts routing to core 0 (FIQ + IRQ)
-        let gpu_int_routing_reg = (reg_base + GPU_INT_ROUTING_REG_OFFSET) as *mut u32;
-        unsafe {
-            write_volatile(gpu_int_routing_reg, 0);
+    fn new(node: &Node, reg_base: usize) -> Self {
+        Self {
+            path: node.path(),
+            reg_base,
         }
-
-        // PMU interrupt routing (disabled)
-        let pmu_int_routing_clr_reg = (reg_base + PMU_INT_ROUTING_CLR_REG_OFFSET) as *mut u32;
-        unsafe {
-            write_volatile(pmu_int_routing_clr_reg, u32::MAX);
-        }
-
-        // Core timers interrupts (disabled)
-        let core_timers_int_ctrl_reg = reg_base + CORE_TIMERS_INT_CTRL_REG_OFFSET;
-        for core in 0..4 {
-            unsafe {
-                write_volatile(
-                    (core_timers_int_ctrl_reg + core * size_of::<u32>()) as *mut u32,
-                    0,
-                );
-            }
-        }
-
-        // Core mailboxes interrupts (disabled)
-        let core_mbox_int_ctrl_reg = reg_base + CORE_MBOX_INT_CTRL_REG_OFFSET;
-        for core in 0..4 {
-            unsafe {
-                write_volatile(
-                    (core_mbox_int_ctrl_reg + core * size_of::<u32>()) as *mut u32,
-                    0,
-                );
-            }
-        }
-
-        // AXI-outstanding interrupt enable (disabled)
-        let axi_outstanding_irq_reg = (reg_base + AXI_OUTSTANDING_IRQ_REG_OFFSET) as *mut u32;
-        with_addr_lock(axi_outstanding_irq_reg as usize, || unsafe {
-            let mut value = read_volatile(axi_outstanding_irq_reg);
-            value = value & !(1 << 20);
-            write_volatile(axi_outstanding_irq_reg, value);
-        });
-
-        // Local timer interrupt routing to core 0 (IRQ)
-        let local_timer_int_routing_reg =
-            (reg_base + LOCAL_TIMER_INT_ROUTING_REG_OFFSET) as *mut u32;
-        unsafe {
-            write_volatile(local_timer_int_routing_reg, CORE_UNRELATED_DEST_IRQ_CORE_0);
-        }
-        // Local timer interrupt enable (disabled)
-        let local_timer_ctrl_and_status_reg =
-            (reg_base + LOCAL_TIMER_CTRL_AND_STATUS_REG_OFFSET) as *mut u32;
-        with_addr_lock(local_timer_ctrl_and_status_reg as usize, || unsafe {
-            let mut value = read_volatile(local_timer_ctrl_and_status_reg);
-            value = value & !(1 << 29);
-            write_volatile(local_timer_ctrl_and_status_reg, value);
-        });
-
-        Self { reg_base }
     }
 
     #[inline]
@@ -207,6 +153,67 @@ impl InterruptControllerDevice {
     }
 }
 
+impl Device for InterruptControllerDevice {
+    fn global_setup(&self) {
+        // GPU interrupts routing to core 0 (FIQ + IRQ)
+        let gpu_int_routing_reg = (self.reg_base + GPU_INT_ROUTING_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(gpu_int_routing_reg, 0);
+        }
+
+        // PMU interrupt routing (disabled)
+        let pmu_int_routing_clr_reg = (self.reg_base + PMU_INT_ROUTING_CLR_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(pmu_int_routing_clr_reg, u32::MAX);
+        }
+
+        // AXI-outstanding interrupt enable (disabled)
+        let axi_outstanding_irq_reg = (self.reg_base + AXI_OUTSTANDING_IRQ_REG_OFFSET) as *mut u32;
+        with_addr_lock(axi_outstanding_irq_reg as usize, || unsafe {
+            let mut value = read_volatile(axi_outstanding_irq_reg);
+            value = value & !(1 << 20);
+            write_volatile(axi_outstanding_irq_reg, value);
+        });
+
+        // Local timer interrupt routing to core 0 (IRQ)
+        let local_timer_int_routing_reg =
+            (self.reg_base + LOCAL_TIMER_INT_ROUTING_REG_OFFSET) as *mut u32;
+        unsafe {
+            write_volatile(local_timer_int_routing_reg, CORE_UNRELATED_DEST_IRQ_CORE_0);
+        }
+        // Local timer interrupt enable (disabled)
+        let local_timer_ctrl_and_status_reg =
+            (self.reg_base + LOCAL_TIMER_CTRL_AND_STATUS_REG_OFFSET) as *mut u32;
+        with_addr_lock(local_timer_ctrl_and_status_reg as usize, || unsafe {
+            let mut value = read_volatile(local_timer_ctrl_and_status_reg);
+            value = value & !(1 << 29);
+            write_volatile(local_timer_ctrl_and_status_reg, value);
+        });
+    }
+
+    fn local_setup(&self) {
+        let core_offset = core_id() * size_of::<u32>();
+
+        // Core timer interrupt (disabled)
+        let core_timers_int_ctrl_reg =
+            (self.reg_base + CORE_TIMERS_INT_CTRL_REG_OFFSET + core_offset) as *mut u32;
+        unsafe {
+            write_volatile(core_timers_int_ctrl_reg, 0);
+        }
+
+        // Core mailbox interrupt (disabled)
+        let core_mbox_int_ctrl_reg =
+            (self.reg_base + CORE_MBOX_INT_CTRL_REG_OFFSET + core_offset) as *mut u32;
+        unsafe {
+            write_volatile(core_mbox_int_ctrl_reg, 0);
+        }
+    }
+
+    fn path(&self) -> &str {
+        self.path.as_str()
+    }
+}
+
 impl InterruptController for InterruptControllerDevice {
     fn enable(&self, hwirq: u32) {
         match hwirq {
@@ -294,6 +301,18 @@ impl InterruptController for InterruptControllerDevice {
     }
 }
 
+pub struct InterruptControllerDriver {
+    dev_registry: DriverRegistry<InterruptControllerDevice>,
+}
+
+impl InterruptControllerDriver {
+    const fn new() -> Self {
+        Self {
+            dev_registry: DriverRegistry::new(),
+        }
+    }
+}
+
 impl PlatformDriver for InterruptControllerDriver {
     fn compatible(&self) -> &str {
         "brcm,bcm2836-l1-intc"
@@ -343,8 +362,14 @@ impl PlatformDriver for InterruptControllerDriver {
         );
 
         let addr = map_io_region(phys_addr, length);
-        let dev = InterruptControllerDevice::init(addr);
+        let dev = InterruptControllerDevice::new(node, addr);
+
+        dev.global_setup();
+        // direct call for primary core is more efficient, secondary cores shall call local_init
+        dev.local_setup();
+
         let dev = Arc::new(dev);
+        self.dev_registry.add_device(node, dev.clone());
 
         register_controller(node, dev, hwirq::COUNT).map_err(|_| DriverInitError::Retry)?;
 
@@ -352,6 +377,21 @@ impl PlatformDriver for InterruptControllerDriver {
 
         Ok(())
     }
+
+    fn get_device(&self, node: &Node) -> Option<Arc<dyn Device>> {
+        self.dev_registry.get_device_opaque(node)
+    }
+
+    fn local_init(&self, node: &Node) {
+        if let Some(dev) = self.dev_registry.get_device(node) {
+            dev.local_setup();
+        } else {
+            kprintln!(
+                "[WARNING][{}] local_init: device not found",
+                self.compatible()
+            );
+        }
+    }
 }
 
-pub static DRIVER: InterruptControllerDriver = InterruptControllerDriver;
+pub static DRIVER: InterruptControllerDriver = InterruptControllerDriver::new();

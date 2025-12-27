@@ -1,7 +1,8 @@
+use alloc::string::String;
 use alloc::sync::Arc;
 use core::ptr::write_volatile;
 
-use crate::drivers::{DriverInitError, PlatformDriver};
+use crate::drivers::{Device, DriverInitError, DriverRegistry, PlatformDriver};
 use crate::kernel::devicetree::interrupts::{
     InterruptControllerNode, InterruptControllerOrNexusNode, InterruptGeneratingNode,
     InterruptSpecifier,
@@ -36,33 +37,42 @@ const DISABLE_IRQS_1_REG_OFFSET: usize = 0x1C;
 const DISABLE_IRQS_2_REG_OFFSET: usize = 0x20;
 const DISABLE_BASIC_IRQS_REG_OFFSET: usize = 0x24;
 
-pub struct InterruptControllerDriver;
-
 pub struct InterruptControllerDevice {
+    path: String,
     reg_base: usize,
     virq_base: OnceLock<u32>,
 }
 
-impl InterruptControllerDevice {
-    fn init(reg_base: usize) -> Self {
+impl Device for InterruptControllerDevice {
+    fn global_setup(&self) {
         // disable FIQ
-        let fiq_ctrl_reg = (reg_base + FIQ_CTRL_REG_OFFSET) as *mut u32;
+        let fiq_ctrl_reg = (self.reg_base + FIQ_CTRL_REG_OFFSET) as *mut u32;
         unsafe {
-            // FIXME: hangs here forever!!!
             write_volatile(fiq_ctrl_reg, 0);
         }
 
         // disable all IRQs
-        let disable_irqs_1_reg = (reg_base + DISABLE_IRQS_1_REG_OFFSET) as *mut u32;
-        let disable_irqs_2_reg = (reg_base + DISABLE_IRQS_2_REG_OFFSET) as *mut u32;
-        let disable_basic_irqs_reg = (reg_base + DISABLE_BASIC_IRQS_REG_OFFSET) as *mut u32;
+        let disable_irqs_1_reg = (self.reg_base + DISABLE_IRQS_1_REG_OFFSET) as *mut u32;
+        let disable_irqs_2_reg = (self.reg_base + DISABLE_IRQS_2_REG_OFFSET) as *mut u32;
+        let disable_basic_irqs_reg = (self.reg_base + DISABLE_BASIC_IRQS_REG_OFFSET) as *mut u32;
         unsafe {
             write_volatile(disable_irqs_1_reg, u32::MAX);
             write_volatile(disable_irqs_2_reg, u32::MAX);
             write_volatile(disable_basic_irqs_reg, u32::MAX);
         }
+    }
 
+    fn local_setup(&self) {}
+
+    fn path(&self) -> &str {
+        self.path.as_str()
+    }
+}
+
+impl InterruptControllerDevice {
+    fn new(node: &Node, reg_base: usize) -> Self {
         Self {
+            path: node.path(),
             reg_base,
             virq_base: OnceLock::new(),
         }
@@ -220,6 +230,18 @@ impl InterruptHandler for InterruptControllerDevice {
     }
 }
 
+pub struct InterruptControllerDriver {
+    dev_registry: DriverRegistry<InterruptControllerDevice>,
+}
+
+impl InterruptControllerDriver {
+    const fn new() -> Self {
+        Self {
+            dev_registry: DriverRegistry::new(),
+        }
+    }
+}
+
 impl PlatformDriver for InterruptControllerDriver {
     fn compatible(&self) -> &str {
         "brcm,bcm2836-armctrl-ic"
@@ -269,7 +291,10 @@ impl PlatformDriver for InterruptControllerDriver {
         );
 
         let addr = map_io_region(phys_addr, length);
-        let dev = InterruptControllerDevice::init(addr);
+        let dev = InterruptControllerDevice::new(node, addr);
+
+        dev.global_setup();
+
         let dev = Arc::new(dev);
 
         register_controller(node, dev.clone(), HWIRQ_COUNT).map_err(|_| DriverInitError::Retry)?;
@@ -283,6 +308,10 @@ impl PlatformDriver for InterruptControllerDriver {
 
         Ok(())
     }
+
+    fn get_device(&self, node: &Node) -> Option<Arc<dyn Device>> {
+        self.dev_registry.get_device_opaque(node)
+    }
 }
 
-pub static DRIVER: InterruptControllerDriver = InterruptControllerDriver;
+pub static DRIVER: InterruptControllerDriver = InterruptControllerDriver::new();

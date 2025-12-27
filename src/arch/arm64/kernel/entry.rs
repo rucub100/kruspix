@@ -146,6 +146,7 @@ extern "C" fn _start_el2() {
         // Hypervisor Configuration - set execution state for EL1 to AArch64
         "mov x4, (1 << 31)",
         "msr hcr_el2, x4",
+        // TODO: CNTKCTL_EL2 - access control for timers
         // Architectural Feature Trap - don't trap any
         "mov x4, xzr",
         "msr cptr_el2, x4",
@@ -201,6 +202,7 @@ extern "C" fn _start_el1() {
         "mrs x4, cpacr_el1",
         "orr x4, x4, #(0b11 << 20)",
         "msr  cpacr_el1, x4",
+        // TODO: CNTKCTL_EL1 - access control for timers
         // enable early MMU
         "bl _enable_early_mmu",
         "mmu_enabled:",

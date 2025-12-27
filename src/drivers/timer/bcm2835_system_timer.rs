@@ -1,6 +1,7 @@
+use alloc::string::String;
 use alloc::sync::Arc;
 
-use crate::drivers::{DriverInitError, PlatformDriver};
+use crate::drivers::{Device, DriverInitError, DriverRegistry, PlatformDriver};
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::{misc_prop::MiscellaneousProperties, std_prop::StandardProperties};
 use crate::kernel::irq::resolve_virq;
@@ -23,27 +24,39 @@ const C3_REG_OFFSET: u32 = 0x18;
 const CS_REG_M3_BIT: u32 = 1 << 3;
 
 pub struct TimerDevice {
+    path: String,
     reg_base: usize,
     clock_frequency: u64,
     virq: u32,
 }
 
-impl TimerDevice {
-    fn init(reg_base: usize, clock_frequency: u64, virq: u32) -> Self {
+impl Device for TimerDevice {
+    fn global_setup(&self) {
         // clear timer 3 channel comparator match
         // write 1 to clear the status and the corresponding irq line
-        let cs_reg = (reg_base + CS_REG_OFFSET as usize) as *mut u32;
+        let cs_reg = (self.reg_base + CS_REG_OFFSET as usize) as *mut u32;
         unsafe {
             cs_reg.write_volatile(CS_REG_M3_BIT);
         }
 
         // reset the C3 compare register but don't touch others
-        let c3_reg = (reg_base + C3_REG_OFFSET as usize) as *mut u32;
+        let c3_reg = (self.reg_base + C3_REG_OFFSET as usize) as *mut u32;
         unsafe {
             c3_reg.write_volatile(0);
         }
+    }
 
+    fn local_setup(&self) {}
+
+    fn path(&self) -> &str {
+        self.path.as_str()
+    }
+}
+
+impl TimerDevice {
+    fn new(node: &Node, reg_base: usize, clock_frequency: u64, virq: u32) -> Self {
         TimerDevice {
+            path: node.path(),
             reg_base,
             clock_frequency,
             virq,
@@ -107,7 +120,17 @@ impl Alarm for TimerDevice {
     }
 }
 
-pub struct TimerDriver;
+pub struct TimerDriver {
+    dev_registry: DriverRegistry<TimerDevice>,
+}
+
+impl TimerDriver {
+    const fn new() -> Self {
+        Self {
+            dev_registry: DriverRegistry::new(),
+        }
+    }
+}
 
 impl PlatformDriver for TimerDriver {
     fn compatible(&self) -> &str {
@@ -144,7 +167,10 @@ impl PlatformDriver for TimerDriver {
         let virq = resolve_virq(node, 3).map_err(|_| DriverInitError::Retry)?;
 
         let addr = map_io_region(phys_addr, length);
-        let dev = TimerDevice::init(addr, rate, virq);
+        let dev = TimerDevice::new(node, addr, rate, virq);
+
+        dev.global_setup();
+
         let dev = Arc::new(dev);
 
         register_timer(dev.clone());
@@ -152,6 +178,10 @@ impl PlatformDriver for TimerDriver {
 
         Ok(())
     }
+
+    fn get_device(&self, node: &Node) -> Option<Arc<dyn Device>> {
+        self.dev_registry.get_device_opaque(node)
+    }
 }
 
-pub static DRIVER: TimerDriver = TimerDriver;
+pub static DRIVER: TimerDriver = TimerDriver::new();

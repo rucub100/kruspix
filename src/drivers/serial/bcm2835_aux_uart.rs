@@ -1,7 +1,9 @@
+use alloc::string::String;
+use alloc::sync::Arc;
 use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::drivers::{DriverInitError, PlatformDriver};
+use crate::drivers::{Device, DriverInitError, DriverRegistry, PlatformDriver};
 use crate::kernel::console::{Console, register_early_console};
 use crate::kernel::devicetree::{fdt::Fdt, node::Node};
 use crate::kprintln;
@@ -31,14 +33,42 @@ const AUX_MU_BAUD_REG_OFFSET: usize = 0x28;
 
 const TX_EMPTY: u32 = 1 << 5;
 
+struct MiniUartDevice {
+    path: String,
+    reg_base: usize,
+}
+
+impl Device for MiniUartDevice {
+    fn global_setup(&self) {
+        todo!()
+    }
+
+    fn local_setup(&self) {
+        todo!()
+    }
+
+    fn path(&self) -> &str {
+        self.path.as_str()
+    }
+}
+
+impl Console for MiniUartDevice {
+    fn write(&self, _s: &str) {
+        todo!()
+    }
+}
+
+
 pub struct MiniUartDriver {
     reg_base: AtomicUsize,
+    dev_registry: DriverRegistry<MiniUartDevice>,
 }
 
 impl MiniUartDriver {
     const fn new() -> Self {
         Self {
             reg_base: AtomicUsize::new(0),
+            dev_registry: DriverRegistry::new(),
         }
     }
 }
@@ -73,15 +103,6 @@ impl Console for MiniUartDriver {
     }
 }
 
-struct MiniUartDevice {
-    reg_base: usize,
-}
-
-impl Console for MiniUartDevice {
-    fn write(&self, _s: &str) {
-        todo!()
-    }
-}
 
 impl PlatformDriver for MiniUartDriver {
     fn compatible(&self) -> &str {
@@ -109,8 +130,15 @@ impl PlatformDriver for MiniUartDriver {
         for prop in node.properties() {
             kprintln!("-> Property: {}", prop.name());
         }
+        
+        // TODO:
+        // dev.global_setup();
 
         Err(DriverInitError::ToDo)
+    }
+
+    fn get_device(&self, node: &Node) -> Option<Arc<dyn Device>> {
+        todo!()
     }
 
     fn early_init(&'static self, fdt: &Fdt, path: &str) {
