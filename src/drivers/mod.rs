@@ -8,7 +8,6 @@ use crate::kernel::devicetree::{
     fdt::Fdt, get_devicetree, node::Node, std_prop::StandardProperties,
 };
 use crate::kernel::sync::SpinLock;
-use crate::kernel::time::Alarm;
 use crate::kprintln;
 
 mod bluetooth;

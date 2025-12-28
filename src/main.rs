@@ -2,11 +2,14 @@
 #![no_main]
 extern crate alloc;
 
+use alloc::sync::Arc;
 use kruspix::arch::cpu::local_enable_irq_fiq;
 use kruspix::arch::{kernel::setup::setup_arch, mm::mmu::setup_page_tables};
 use kruspix::drivers::init_platform_drivers;
-use kruspix::kernel::cpu::init_local_data;
+use kruspix::kernel::cpu::{get_local_data, init_local_data};
 use kruspix::kernel::devicetree::init_devicetree;
+use kruspix::kernel::irq::register_handler;
+use kruspix::kernel::time::uptime;
 use kruspix::mm::init_heap;
 use kruspix::{kprint, kprintln};
 
@@ -23,6 +26,25 @@ pub extern "C" fn start_kernel() -> ! {
     init_platform_drivers();
 
     local_enable_irq_fiq();
+
+    let local = get_local_data();
+    let alarm_handler = Arc::new(|_| {
+        let alarm = local.get_alarm().unwrap();
+        let now = uptime();
+        kprintln!("[{}] Local alarm triggered on core {}", now.as_millis(),  local.core_id());
+        alarm.cancel();
+        let mut ticks = alarm.duration_to_ticks(now);
+        ticks += alarm.duration_to_ticks(core::time::Duration::from_secs(1));
+        alarm.schedule_at(ticks);
+    });
+
+    if let Some(alarm) = local.get_alarm() {
+        register_handler(alarm.virq(), alarm_handler).unwrap();
+        let uptime = uptime();
+        let mut ticks = alarm.duration_to_ticks(uptime);
+        ticks += alarm.duration_to_ticks(core::time::Duration::from_secs(1));
+        alarm.schedule_at(ticks);
+    }
 
     // TODO: memory management setup
     // TODO: interrupts/exceptions setup
