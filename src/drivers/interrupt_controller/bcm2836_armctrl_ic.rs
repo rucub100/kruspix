@@ -305,6 +305,7 @@ impl PlatformDriver for InterruptControllerDriver {
         let addr = map_io_region(phys_addr, length);
         let dev = InterruptControllerDevice::new(node.path(), addr);
         let dev = Arc::new(dev);
+        self.dev_registry.add_device(node.path(), dev.clone());
 
         dev.global_setup(node)?;
 

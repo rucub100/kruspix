@@ -116,6 +116,8 @@ pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     // timer
     &timer::arm_generic_timer::DRIVER,
     &timer::bcm2835_system_timer::DRIVER,
+    // rng
+    &rng::bcm2835_rng::DRIVER,
     // serial
     &serial::bcm2835_aux_uart::DRIVER,
 ];

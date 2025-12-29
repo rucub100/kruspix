@@ -379,14 +379,6 @@ impl PlatformDriver for InterruptControllerDriver {
     fn get_device(&self, id: &str) -> Option<Arc<dyn Device>> {
         self.dev_registry.get_device_opaque(id)
     }
-
-    fn local_init(&self, id: &str) -> Result<(), DriverInitError> {
-        if let Some(dev) = self.dev_registry.get_device(id) {
-            dev.local_setup()?;
-        }
-
-        Ok(())
-    }
 }
 
 pub static DRIVER: InterruptControllerDriver = InterruptControllerDriver::new();

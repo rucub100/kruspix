@@ -11,6 +11,7 @@ pub mod sync;
 pub mod time;
 pub mod watchdog;
 pub mod cpu;
+pub mod rng;
 
 pub fn kernel_addr_size() -> (usize, usize) {
     let kernel_start: usize;

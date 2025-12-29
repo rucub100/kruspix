@@ -118,3 +118,21 @@ pub fn uptime() -> Duration {
         .map(|timer| timer.uptime())
         .unwrap_or(Duration::ZERO)
 }
+
+/// Busy-wait for the specified duration.
+/// 
+/// # Safety
+/// The duration must be greater than zero and less than one second.
+pub fn busy_wait(duration: Duration) {
+    assert!(duration > Duration::ZERO);
+    assert!(duration < Duration::from_secs(1));
+
+    let timer = GLOBAL_SYSTEM_TIMER.lock_irq().as_ref().unwrap().clone();
+    let start_ticks = timer.counter();
+    let wait_ticks = timer.duration_to_ticks(duration);
+    assert!(wait_ticks < timer.max_ticks());
+
+    while timer.counter().wrapping_sub(start_ticks) < wait_ticks {
+        core::hint::spin_loop();
+    }
+}

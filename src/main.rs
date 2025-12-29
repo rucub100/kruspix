@@ -9,6 +9,7 @@ use kruspix::drivers::init_platform_drivers;
 use kruspix::kernel::cpu::{get_local_data, init_local_data};
 use kruspix::kernel::devicetree::init_devicetree;
 use kruspix::kernel::irq::register_handler;
+use kruspix::kernel::rng::get_rng;
 use kruspix::kernel::time::uptime;
 use kruspix::mm::init_heap;
 use kruspix::{kprint, kprintln};
@@ -31,10 +32,21 @@ pub extern "C" fn start_kernel() -> ! {
     let alarm_handler = Arc::new(|_| {
         let alarm = local.get_alarm().unwrap();
         let now = uptime();
-        kprintln!("[{}] Local alarm triggered on core {}", now.as_millis(),  local.core_id());
+
+        kprintln!(
+            "[{}] Local alarm triggered on core {}",
+            now.as_millis(),
+            local.core_id()
+        );
+        if let Some(rng) = get_rng()
+            && let Some(random) = rng.next_usize().ok()
+        {
+            kprintln!("-> Random number: {:x}", random);
+        }
+
         alarm.cancel();
         let mut ticks = alarm.duration_to_ticks(now);
-        ticks += alarm.duration_to_ticks(core::time::Duration::from_secs(1));
+        ticks += alarm.duration_to_ticks(core::time::Duration::from_millis(10));
         alarm.schedule_at(ticks);
     });
 
