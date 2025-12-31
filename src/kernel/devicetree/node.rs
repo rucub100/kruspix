@@ -134,10 +134,10 @@ impl Node {
     /// # Safety
     /// We assume that address and length cells fit into usize.
     /// Furthermore, we assume that the reg length is always equal to the range length.
-    pub fn resolve_phys_address_and_length(&self) -> Option<(usize, usize)> {
+    pub fn resolve_phys_address_and_length(&self, reg_index: usize) -> Option<(usize, usize)> {
         let address_length_pair = self
             .reg()
-            .and_then(|reg| reg.first())
+            .and_then(|reg| reg.get(reg_index))
             .map(|reg| (reg.address_as_usize().ok(), reg.length_as_usize().ok()));
 
         if let Some((address, length)) = address_length_pair

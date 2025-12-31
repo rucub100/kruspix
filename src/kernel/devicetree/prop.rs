@@ -223,7 +223,7 @@ impl UnknownProperty {
     }
 }
 
-impl TryInto<u32> for UnknownProperty {
+impl TryInto<u32> for &UnknownProperty {
     type Error = ();
 
     fn try_into(self) -> Result<u32, Self::Error> {
@@ -235,7 +235,7 @@ impl TryInto<u32> for UnknownProperty {
     }
 }
 
-impl TryInto<PHandle> for UnknownProperty {
+impl TryInto<PHandle> for &UnknownProperty {
     type Error = ();
 
     fn try_into(self) -> Result<PHandle, Self::Error> {
@@ -243,7 +243,7 @@ impl TryInto<PHandle> for UnknownProperty {
     }
 }
 
-impl TryInto<u64> for UnknownProperty {
+impl TryInto<u64> for &UnknownProperty {
     type Error = ();
 
     fn try_into(self) -> Result<u64, Self::Error> {
@@ -255,7 +255,7 @@ impl TryInto<u64> for UnknownProperty {
     }
 }
 
-impl TryInto<String> for UnknownProperty {
+impl TryInto<String> for &UnknownProperty {
     type Error = ();
 
     fn try_into(self) -> Result<String, Self::Error> {
@@ -266,15 +266,19 @@ impl TryInto<String> for UnknownProperty {
     }
 }
 
-impl TryInto<Vec<String>> for UnknownProperty {
+impl TryInto<Vec<String>> for &UnknownProperty {
     type Error = ();
 
     fn try_into(self) -> Result<Vec<String>, Self::Error> {
-        todo!()
+        Ok(RawProp::new("", &self.0)
+            .value_as_string_list_iter()
+            .filter_map(|x| x.ok())
+            .map(|x| x.to_string())
+            .collect())
     }
 }
 
-impl<const N: usize> TryInto<Vec<[u32; N]>> for UnknownProperty {
+impl<const N: usize> TryInto<Vec<[u32; N]>> for &UnknownProperty {
     type Error = ();
 
     fn try_into(self) -> Result<Vec<[u32; N]>, Self::Error> {
@@ -282,7 +286,7 @@ impl<const N: usize> TryInto<Vec<[u32; N]>> for UnknownProperty {
     }
 }
 
-impl<const N: usize, const M: usize> TryInto<Vec<([u32; N], [u32; M])>> for UnknownProperty {
+impl<const N: usize, const M: usize> TryInto<Vec<([u32; N], [u32; M])>> for &UnknownProperty {
     type Error = ();
 
     fn try_into(self) -> Result<Vec<([u32; N], [u32; M])>, Self::Error> {

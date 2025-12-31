@@ -103,8 +103,8 @@ impl Console for MiniUartDriver {
 }
 
 impl PlatformDriver for MiniUartDriver {
-    fn compatible(&self) -> &str {
-        "brcm,bcm2835-aux-uart"
+    fn compatible(&self) -> &[&str] {
+        &["brcm,bcm2835-aux-uart"]
     }
 
     fn try_init(&self, node: &Node) -> Result<(), DriverInitError> {

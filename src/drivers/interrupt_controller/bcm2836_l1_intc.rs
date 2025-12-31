@@ -316,16 +316,16 @@ impl InterruptControllerDriver {
 }
 
 impl PlatformDriver for InterruptControllerDriver {
-    fn compatible(&self) -> &str {
-        "brcm,bcm2836-l1-intc"
+    fn compatible(&self) -> &[&str] {
+        &["brcm,bcm2836-l1-intc"]
     }
 
     fn try_init(&self, node: &Node) -> Result<(), DriverInitError> {
-        kprintln!("[{}] try init", self.compatible());
+        kprintln!("{:?} try init", self.compatible());
 
         if !node.is_interrupt_controller() {
             kprintln!(
-                "[ERROR][{}] missing 'interrupt-controller' property",
+                "[ERROR]{:?} missing 'interrupt-controller' property",
                 self.compatible()
             );
             return Err(DriverInitError::DeviceTreeError);
@@ -336,7 +336,7 @@ impl PlatformDriver for InterruptControllerDriver {
             .ok_or(DriverInitError::DeviceTreeError)?;
         if interrupt_cells != 2 {
             kprintln!(
-                "[ERROR][{}] invalid '#interrupt-cells' property value: expected 2, got {}",
+                "[ERROR]{:?} invalid '#interrupt-cells' property value: expected 2, got {}",
                 self.compatible(),
                 interrupt_cells
             );
@@ -346,7 +346,7 @@ impl PlatformDriver for InterruptControllerDriver {
         let reg = node.reg().ok_or(DriverInitError::DeviceTreeError)?;
         if reg.len() != 1 {
             kprintln!(
-                "[ERROR][{}] invalid 'reg' property: expected 1 region, got {}",
+                "[ERROR]{:?} invalid 'reg' property: expected 1 region, got {}",
                 self.compatible(),
                 reg.len()
             );
@@ -354,10 +354,10 @@ impl PlatformDriver for InterruptControllerDriver {
         }
 
         let (phys_addr, length) = node
-            .resolve_phys_address_and_length()
+            .resolve_phys_address_and_length(0)
             .ok_or(DriverInitError::DeviceTreeError)?;
         kprintln!(
-            "[{}] reg: phys_addr=0x{:x}, length=0x{:x}",
+            "{:?} reg: phys_addr=0x{:x}, length=0x{:x}",
             self.compatible(),
             phys_addr,
             length
@@ -371,7 +371,7 @@ impl PlatformDriver for InterruptControllerDriver {
         dev.clone().global_setup(node)?;
         dev.local_setup()?;
 
-        kprintln!("[{}] initialized successfully", self.compatible());
+        kprintln!("{:?} initialized successfully", self.compatible());
 
         Ok(())
     }

@@ -3,6 +3,7 @@
 extern crate alloc;
 
 use alloc::sync::Arc;
+
 use kruspix::arch::cpu::local_enable_irq_fiq;
 use kruspix::arch::{kernel::setup::setup_arch, mm::mmu::setup_page_tables};
 use kruspix::drivers::init_platform_drivers;
@@ -46,7 +47,7 @@ pub extern "C" fn start_kernel() -> ! {
 
         alarm.cancel();
         let mut ticks = alarm.duration_to_ticks(now);
-        ticks += alarm.duration_to_ticks(core::time::Duration::from_millis(10));
+        ticks += alarm.duration_to_ticks(core::time::Duration::from_millis(1000));
         alarm.schedule_at(ticks);
     });
 

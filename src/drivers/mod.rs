@@ -44,8 +44,8 @@ pub trait Device: Send + Sync {
 }
 
 pub trait PlatformDriver: Send + Sync {
-    /// Returns the compatible string that this driver supports.
-    fn compatible(&self) -> &str;
+    /// Returns the compatible list that this driver supports.
+    fn compatible(&self) -> &[&str];
 
     /// Driver's factory method to initialize a device instance from a device tree node.
     fn try_init(&self, node: &Node) -> Result<(), DriverInitError>;
@@ -116,6 +116,8 @@ pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     // timer
     &timer::arm_generic_timer::DRIVER,
     &timer::bcm2835_system_timer::DRIVER,
+    // watchdog
+    &watchdog::bcm2835_pm::DRIVER,
     // rng
     &rng::bcm2835_rng::DRIVER,
     // serial
@@ -241,7 +243,7 @@ fn match_driver(node: &Node) -> Option<&'static dyn PlatformDriver> {
     for compatible in compatible_list {
         let driver = PLATFORM_DRIVERS
             .iter()
-            .find(|d| d.compatible() == compatible);
+            .find(|d| d.compatible().contains(&compatible.as_str()));
 
         if driver.is_some() {
             return driver.copied();

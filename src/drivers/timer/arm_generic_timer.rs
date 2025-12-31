@@ -119,12 +119,12 @@ pub struct GenericTimerDriver {
 }
 
 impl PlatformDriver for GenericTimerDriver {
-    fn compatible(&self) -> &str {
-        "arm,armv7-timer"
+    fn compatible(&self) -> &[&str] {
+        &["arm,armv7-timer"]
     }
 
     fn try_init(&self, node: &Node) -> Result<(), DriverInitError> {
-        kprintln!("[{}] try init", self.compatible());
+        kprintln!("{:?} try init", self.compatible());
 
         let frequency = node.clock_frequency().unwrap_or(&ClockFrequency::U32(0));
         // according to devicetree bindings, index 2 corresponds to the virtual timer interrupt
@@ -137,7 +137,7 @@ impl PlatformDriver for GenericTimerDriver {
         dev.clone().global_setup(node)?;
         dev.local_setup()?;
 
-        kprintln!("[{}] initialized successfully", self.compatible());
+        kprintln!("{:?} initialized successfully", self.compatible());
         Ok(())
     }
 

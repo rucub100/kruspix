@@ -140,17 +140,17 @@ impl TimerDriver {
 }
 
 impl PlatformDriver for TimerDriver {
-    fn compatible(&self) -> &str {
-        "brcm,bcm2835-system-timer"
+    fn compatible(&self) -> &[&str] {
+        &["brcm,bcm2835-system-timer"]
     }
 
     fn try_init(&self, node: &Node) -> Result<(), DriverInitError> {
-        kprintln!("[{}] try init", self.compatible());
+        kprintln!("{:?} try init", self.compatible());
 
         let reg = node.reg().ok_or(DriverInitError::DeviceTreeError)?;
         if reg.len() != 1 {
             kprintln!(
-                "[ERROR][{}] invalid 'reg' property: expected 1 region, got {}",
+                "[ERROR]{:?} invalid 'reg' property: expected 1 region, got {}",
                 self.compatible(),
                 reg.len()
             );
@@ -162,10 +162,10 @@ impl PlatformDriver for TimerDriver {
             .map_or(1_000_000u64, |cf| cf.as_u64());
 
         let (phys_addr, length) = node
-            .resolve_phys_address_and_length()
+            .resolve_phys_address_and_length(0)
             .ok_or(DriverInitError::DeviceTreeError)?;
         kprintln!(
-            "[{}] reg: phys_addr=0x{:x}, length=0x{:x}",
+            "{:?} reg: phys_addr=0x{:x}, length=0x{:x}",
             self.compatible(),
             phys_addr,
             length

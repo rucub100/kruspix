@@ -71,7 +71,7 @@ fn parse_parameters(fdt: &Fdt) {
         {
             let stdout_compatible_driver = crate::drivers::PLATFORM_DRIVERS
                 .iter()
-                .find(|d| d.compatible() == compatible);
+                .find(|d| d.compatible().contains(&compatible));
 
             if let Some(driver) = stdout_compatible_driver {
                 driver.early_init(fdt, stdout_path);
