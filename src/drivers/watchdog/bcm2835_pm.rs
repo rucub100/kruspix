@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 //! BCM2835 Power Management and Watchdog Timer Driver
 //!
@@ -25,6 +25,8 @@ use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::prop::PropertyValue;
 use crate::kernel::devicetree::std_prop::StandardProperties;
 use crate::kernel::sync::SpinLock;
+use crate::kernel::time::{convert_duration_to_ticks, convert_ticks_to_duration};
+use crate::kernel::watchdog::{Watchdog, register_watchdog};
 use crate::kprintln;
 use crate::mm::map_io_region;
 
@@ -33,6 +35,7 @@ mod wdt {
     pub const PM_RSTS_REG_OFFSET: usize = 0x20;
     pub const PM_WDOG_REG_OFFSET: usize = 0x24;
 
+    pub const PM_WDOG_FREQUENCY_HZ: u128 = 1 << 16;
     /// Watchdog time value mask (20 bits)
     pub const PM_WDOG_TIME_SET: u32 = 0x000fffff;
     pub const PM_RSTC_WRCFG_CLR: u32 = 0xffffffcf;
@@ -68,16 +71,54 @@ impl WatchdogTimerDevice {
 
     fn timeout_ticks(&self) -> u32 {
         let timeout_secs = self.timeout.load(Ordering::Acquire);
-        assert!(timeout_secs < 16);
-
-        let duration = Duration::from_secs(timeout_secs as u64);
-
-        let ticks_per_sec: u32 = 1 << 16;
-        let mut ticks: u32 = duration.as_secs() as u32 * ticks_per_sec;
-        ticks += (duration.subsec_millis() * ticks_per_sec) / 1000;
-
-        ticks
+        convert_duration_to_ticks(
+            wdt::PM_WDOG_FREQUENCY_HZ,
+            Duration::from_secs(timeout_secs as u64),
+        ) as u32
     }
+
+    fn ticks_to_duration(&self, ticks: u32) -> Duration {
+        let ticks = ticks & wdt::PM_WDOG_TIME_SET;
+        convert_ticks_to_duration(wdt::PM_WDOG_FREQUENCY_HZ, ticks as u64)
+    }
+}
+
+impl Device for WatchdogTimerDevice {
+    fn id(&self) -> &str {
+        self.id.as_str()
+    }
+
+    fn global_setup(self: Arc<Self>, node: &Node) -> Result<(), DriverInitError> {
+        if let Some(prop) = node.properties().iter().find(|p| p.name() == "timeout-sec")
+            && let Some(timeout_sec) = match prop.value() {
+                PropertyValue::Unknown(prop) => prop.try_into().ok(),
+                _ => None,
+            }
+        {
+            let timeout_sec: u32 = timeout_sec;
+            self.timeout.store(timeout_sec, Ordering::Release);
+        }
+
+        // DO NOT start the WDT if not running already (start doesn't work in QEMU)
+        if self.is_running() {
+            // FIXME: take over the watchdog from the firmware if it's running
+            kprintln!("[{}] watchdog is running, stopping it", self.id());
+            self.stop();
+        }
+
+        register_watchdog(self.clone());
+
+        // TODO: register the system power-off and restart handlers
+
+        Ok(())
+    }
+
+    fn local_setup(self: Arc<Self>) -> Result<(), DriverInitError> {
+        Ok(())
+    }
+}
+
+impl Watchdog for WatchdogTimerDevice {
     fn is_running(&self) -> bool {
         let pm_rstc_reg = (self.reg_base + wdt::PM_RSTC_REG_OFFSET) as *const u32;
         unsafe {
@@ -109,39 +150,43 @@ impl WatchdogTimerDevice {
             pm_rstc_reg.write_volatile(wdt::PM_RSTC_RESET | PM_PASSWORD);
         }
     }
-}
 
-impl Device for WatchdogTimerDevice {
-    fn id(&self) -> &str {
-        self.id.as_str()
+    fn get_default_timeout(&self) -> Duration {
+        let timeout_secs = self.timeout.load(Ordering::Acquire);
+        Duration::from_secs(timeout_secs as u64)
     }
 
-    fn global_setup(self: Arc<Self>, node: &Node) -> Result<(), DriverInitError> {
-        if let Some(prop) = node.properties().iter().find(|p| p.name() == "timeout-sec")
-            && let Some(timeout_sec) = match prop.value() {
-                PropertyValue::Unknown(prop) => prop.try_into().ok(),
-                _ => None,
-            }
-        {
-            let timeout_sec: u32 = timeout_sec;
-            self.timeout.store(timeout_sec, Ordering::Release);
-        }
-
-        // DO NOT start the WDT if not running already (start doesn't work in QEMU)
-        if self.is_running() {
-            // FIXME: take over the watchdog from the firmware if it's running
-            kprintln!("[{}] watchdog is running, stopping it", self.id());
-            self.stop();
-        }
-
-        // TODO: register the watchdog in the system watchdog module
-        // TODO: register the system power-off and restart handlers
-
-        Ok(())
+    fn get_max_timeout(&self) -> Duration {
+        Duration::from_secs(15)
     }
 
-    fn local_setup(self: Arc<Self>) -> Result<(), DriverInitError> {
-        Ok(())
+    fn get_min_timeout(&self) -> Duration {
+        Duration::from_secs(1)
+    }
+
+    fn set_timeout(&self, timeout: Duration) {
+        let secs = timeout.as_secs();
+        assert!((1..=15).contains(&secs));
+
+        self.timeout.store(secs as u32, Ordering::Release);
+    }
+
+    fn get_countdown(&self) -> Duration {
+        let pm_wdog_reg = (self.reg_base + wdt::PM_WDOG_REG_OFFSET) as *mut u32;
+
+        unsafe {
+            let timeout_ticks = pm_wdog_reg.read_volatile();
+            self.ticks_to_duration(timeout_ticks)
+        }
+    }
+
+    fn acknowledge(&self) {
+        let pm_wdog_reg = (self.reg_base + wdt::PM_WDOG_REG_OFFSET) as *mut u32;
+
+        unsafe {
+            let timeout_ticks = self.timeout_ticks();
+            pm_wdog_reg.write_volatile((timeout_ticks & wdt::PM_WDOG_TIME_SET) | PM_PASSWORD);
+        }
     }
 }
 

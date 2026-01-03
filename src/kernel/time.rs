@@ -10,13 +10,13 @@ use core::time::Duration;
 const NANOS_PER_SEC: u128 = 1_000_000_000;
 
 #[inline]
-fn calc_resolution(frequency_hz: u128) -> Duration {
+pub fn calc_resolution(frequency_hz: u128) -> Duration {
     let nanos = 1u64.max((NANOS_PER_SEC / frequency_hz) as u64);
     Duration::from_nanos(nanos)
 }
 
 #[inline]
-fn convert_duration_to_ticks(frequency_hz: u128, duration: Duration) -> u64 {
+pub fn convert_duration_to_ticks(frequency_hz: u128, duration: Duration) -> u64 {
     let secs = duration.as_secs() as u128;
     let nanos = duration.subsec_nanos() as u128;
 
@@ -27,7 +27,7 @@ fn convert_duration_to_ticks(frequency_hz: u128, duration: Duration) -> u64 {
 }
 
 #[inline]
-fn convert_ticks_to_duration(frequency_hz: u128, ticks: u64) -> Duration {
+pub fn convert_ticks_to_duration(frequency_hz: u128, ticks: u64) -> Duration {
     let ticks = ticks as u128;
     let secs = ticks / frequency_hz;
     let nanos = ((ticks % frequency_hz) * NANOS_PER_SEC) / frequency_hz;
