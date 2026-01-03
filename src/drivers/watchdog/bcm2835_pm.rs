@@ -17,6 +17,7 @@
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::ops::Add;
 use core::sync::atomic::{AtomicU32, Ordering};
 use core::time::Duration;
 
@@ -24,8 +25,11 @@ use crate::drivers::{Device, DriverInitError, DriverRegistry, PlatformDriver};
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::prop::PropertyValue;
 use crate::kernel::devicetree::std_prop::StandardProperties;
-use crate::kernel::sync::SpinLock;
-use crate::kernel::time::{convert_duration_to_ticks, convert_ticks_to_duration};
+use crate::kernel::power::{
+    PowerOffHandler, RestartHandler, register_power_off_handler, register_restart_handler,
+};
+use crate::kernel::sync::{SpinLock, without_interrupts};
+use crate::kernel::time::{busy_wait, convert_duration_to_ticks, convert_ticks_to_duration};
 use crate::kernel::watchdog::{Watchdog, register_watchdog};
 use crate::kprintln;
 use crate::mm::map_io_region;
@@ -71,15 +75,43 @@ impl WatchdogTimerDevice {
 
     fn timeout_ticks(&self) -> u32 {
         let timeout_secs = self.timeout.load(Ordering::Acquire);
-        convert_duration_to_ticks(
-            wdt::PM_WDOG_FREQUENCY_HZ,
-            Duration::from_secs(timeout_secs as u64),
-        ) as u32
+        self.duration_to_ticks(Duration::from_secs(timeout_secs as u64))
+    }
+
+    fn duration_to_ticks(&self, duration: Duration) -> u32 {
+        convert_duration_to_ticks(wdt::PM_WDOG_FREQUENCY_HZ, duration) as u32
     }
 
     fn ticks_to_duration(&self, ticks: u32) -> Duration {
         let ticks = ticks & wdt::PM_WDOG_TIME_SET;
         convert_ticks_to_duration(wdt::PM_WDOG_FREQUENCY_HZ, ticks as u64)
+    }
+
+    // SAFETY: must be called with ALL interrupts disabled
+    fn restart_with_partition(&self, partition: u32) {
+        assert!(partition < 64);
+
+        let _guard = self.lock.lock_irq();
+        let pm_rsts_reg = (self.reg_base + wdt::PM_RSTS_REG_OFFSET) as *mut u32;
+        let pm_rstc_reg = (self.reg_base + wdt::PM_RSTC_REG_OFFSET) as *mut u32;
+        let pm_wdog_reg = (self.reg_base + wdt::PM_WDOG_REG_OFFSET) as *mut u32;
+
+        unsafe {
+            // write partition code to PM_RSTS
+            let rsts_partition = (0..6).fold(0, |acc, i| acc | ((partition >> i) & 1) << (2 * i));
+            let rsts = pm_rsts_reg.read_volatile();
+            pm_rsts_reg
+                .write_volatile((rsts & wdt::PM_RSTS_PARTITION_CLR) | rsts_partition | PM_PASSWORD);
+
+            // write min timeout value
+            let timeout_ticks = self.duration_to_ticks(self.get_min_timeout());
+            pm_wdog_reg.write_volatile((timeout_ticks & wdt::PM_WDOG_TIME_SET) | PM_PASSWORD);
+            // configure full reset
+            let pm_rstc = pm_rstc_reg.read_volatile();
+            pm_rstc_reg.write_volatile(
+                (pm_rstc & wdt::PM_RSTC_WRCFG_CLR) | wdt::PM_RSTC_WRCFG_FULL_RESET | PM_PASSWORD,
+            );
+        }
     }
 }
 
@@ -107,8 +139,8 @@ impl Device for WatchdogTimerDevice {
         }
 
         register_watchdog(self.clone());
-
-        // TODO: register the system power-off and restart handlers
+        register_restart_handler(self.clone());
+        register_power_off_handler(self.clone());
 
         Ok(())
     }
@@ -161,7 +193,7 @@ impl Watchdog for WatchdogTimerDevice {
     }
 
     fn get_min_timeout(&self) -> Duration {
-        Duration::from_secs(1)
+        Duration::from_millis(1)
     }
 
     fn set_timeout(&self, timeout: Duration) {
@@ -187,6 +219,25 @@ impl Watchdog for WatchdogTimerDevice {
             let timeout_ticks = self.timeout_ticks();
             pm_wdog_reg.write_volatile((timeout_ticks & wdt::PM_WDOG_TIME_SET) | PM_PASSWORD);
         }
+    }
+}
+
+impl RestartHandler for WatchdogTimerDevice {
+    fn restart(&self) {
+        without_interrupts(|| {
+            self.restart_with_partition(0);
+            busy_wait(self.get_min_timeout().add(Duration::from_millis(1)));
+        });
+    }
+}
+
+impl PowerOffHandler for WatchdogTimerDevice {
+    fn power_off(&self) {
+        without_interrupts(|| {
+            // use partition code 63 to signal halt to the firmware
+            self.restart_with_partition(63);
+            busy_wait(self.get_min_timeout().add(Duration::from_millis(1)));
+        });
     }
 }
 

@@ -13,6 +13,7 @@ use kruspix::drivers::init_platform_drivers;
 use kruspix::kernel::cpu::{get_local_data, init_local_data};
 use kruspix::kernel::devicetree::init_devicetree;
 use kruspix::kernel::irq::register_handler;
+use kruspix::kernel::power::{system_power_off, system_restart};
 use kruspix::kernel::rng::get_rng;
 use kruspix::kernel::time::uptime;
 use kruspix::mm::init_heap;
@@ -49,9 +50,9 @@ pub extern "C" fn start_kernel() -> ! {
         }
 
         alarm.cancel();
-        let mut ticks = alarm.duration_to_ticks(now);
-        ticks += alarm.duration_to_ticks(core::time::Duration::from_millis(1000));
-        alarm.schedule_at(ticks);
+
+        kprintln!("SYSTEM POWER OFF TEST");
+        system_power_off();
     });
 
     if let Some(alarm) = local.get_alarm() {
