@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 use crate::arch::cpu::{local_disable_irq_fiq, local_restore_interrupts};
 use core::cell::UnsafeCell;
 use core::hint::spin_loop;

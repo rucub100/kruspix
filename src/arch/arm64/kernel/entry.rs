@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 use core::arch::naked_asm;
 
 /// Entry point for the kernel.

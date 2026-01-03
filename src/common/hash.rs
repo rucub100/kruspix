@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 const GOLDEN_RATIO_MUL: usize = 0x9e3779b97f4a7c15u64 as usize;
 
 pub trait FibonacciHash {

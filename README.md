@@ -230,4 +230,6 @@ openocd -f interface/ftdi/um232h.cfg -f board/rpi3.cfg
 
 ## Contact
 
-TODO: add email
+📧 [info@ruslan-curbanov.de](mailto:info@ruslan-curbanov.de)
+
+*Feel free to reach out regarding bug reports, technical discussions, or collaboration opportunities.*

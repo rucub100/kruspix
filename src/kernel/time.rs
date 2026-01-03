@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 use crate::kernel::cpu::get_local_data;
 use crate::kernel::sync::SpinLock;
 use alloc::sync::Arc;

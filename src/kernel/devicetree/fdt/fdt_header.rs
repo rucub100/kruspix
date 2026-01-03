@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 use core::ptr;
 
 const FDT_MAGIC: u32 = 0xd00dfeed;

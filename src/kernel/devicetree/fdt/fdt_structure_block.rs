@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 use core::ffi::{CStr, c_char};
 use core::marker::PhantomData;
 use core::ptr;

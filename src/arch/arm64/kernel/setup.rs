@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 use crate::kernel::devicetree::fdt::raw_prop::StandardProperty;
 use crate::kernel::devicetree::register_fdt_addr;
 use crate::kernel::{devicetree::fdt::Fdt, kernel_addr_size, kernel_bss_size};

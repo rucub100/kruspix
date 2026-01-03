@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 use super::PHandle;
 use crate::kernel::devicetree::std_prop::StdPropError::InvalidStatusValue;
 use alloc::string::{String, ToString};

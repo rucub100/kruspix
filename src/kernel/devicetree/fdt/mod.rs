@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 use crate::kernel::devicetree::node::{CHOSEN_BOOTARGS, CHOSEN_STDIN_PATH, CHOSEN_STDOUT_PATH};
 
 use fdt_header::{FdtHeader, FdtHeaderPtrExt};

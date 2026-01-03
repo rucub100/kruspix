@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 #[macro_export]
 macro_rules! kprint {
     ($($arg:tt)*) => ($crate::kernel::console::console_print(format_args!($($arg)*)));

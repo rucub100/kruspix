@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 use core::alloc::{GlobalAlloc, Layout};
 use core::mem;
 use core::sync::atomic::{AtomicPtr, Ordering};

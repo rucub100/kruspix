@@ -1,3 +1,19 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
+//! BCM2835 Power Management and Watchdog Timer Driver
+//!
+//! This driver was developed using the following Linux kernel sources as a technical
+//! reference for hardware register layouts and sequencing:
+//!
+//! * <https://github.com/raspberrypi/linux/blob/rpi-6.12.y/drivers/mfd/bcm2835-pm.c>
+//! * <https://github.com/raspberrypi/linux/blob/rpi-6.12.y/drivers/watchdog/bcm2835_wdt.c>
+//! * <https://github.com/raspberrypi/linux/blob/rpi-6.12.y/drivers/pmdomain/bcm/bcm2835-power.c>
+//!
+//! While the Linux kernel is licensed under GPL-2.0, this independent implementation
+//! is provided under the MIT License. It does not contain code copied from the
+//! reference sources but utilizes the hardware specifications derived from them.
+
 use alloc::string::String;
 use alloc::sync::Arc;
 use alloc::vec::Vec;

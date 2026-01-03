@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 use super::fdt_structure_block::{StructureBlockEntryKind, StructureBlockIter};
 use crate::kernel::devicetree::node::{ALIASES, CHOSEN, CPUS, MEMORY, RESERVED_MEMORY, ROOT};
 

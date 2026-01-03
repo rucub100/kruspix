@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 fn main() {
     let target = std::env::var("TARGET").unwrap();
     let arch = SupportedArch::from_target(&target).expect(format!("Unsupported target: {}", target).as_str());

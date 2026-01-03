@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 //! Memory layout constants for the kernel.
 //!
 //! This module defines the virtual memory layout offsets used by the kernel.

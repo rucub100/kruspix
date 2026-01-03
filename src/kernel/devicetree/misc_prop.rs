@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+
 pub const CLOCK_FREQUENCY: &'static str = "clock-frequency";
 
 #[derive(Debug)]
