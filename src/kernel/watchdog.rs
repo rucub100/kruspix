@@ -5,9 +5,10 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::time::Duration;
 
+use crate::drivers::Device;
 use crate::kernel::sync::SpinLock;
 
-pub trait Watchdog: Send + Sync {
+pub trait Watchdog: Device + Send + Sync {
     fn is_running(&self) -> bool;
     fn start(&self);
     fn stop(&self);

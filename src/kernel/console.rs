@@ -1,37 +1,41 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
-use alloc::boxed::Box;
+use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::fmt::{Result, Write};
 
 use super::sync::SpinLock;
 use crate::common::ring_array::RingArray;
+use crate::drivers::Device;
 use crate::kprintln;
 
-pub trait Console: Send + Sync {
+pub trait Console: Device + Send + Sync {
     fn write(&self, s: &str);
 }
 
 /// A buffer to hold early boot messages before the early console is registered
 static BOOT_CONSOLE: SpinLock<RingArray<u8, 4096>> = SpinLock::new(RingArray::new(0));
 static EARLY_CONSOLE: SpinLock<Option<&'static dyn Console>> = SpinLock::new(None);
-static SYSTEM_CONSOLES: SpinLock<Vec<Box<dyn Console>>> = SpinLock::new(Vec::new());
+static SYSTEM_CONSOLES: SpinLock<Vec<Arc<dyn Console>>> = SpinLock::new(Vec::new());
 
-pub fn register_console(console: Box<dyn Console>) {
+pub fn register_console(console: Arc<dyn Console>) {
+    kprintln!("[INFO] Registering a new system console");
+
     let mut consoles = SYSTEM_CONSOLES.lock();
-
-    kprintln!("INFO: registering a new system console");
-
     consoles.push(console);
+    drop(consoles);
+
+    if let Some(early_console) = EARLY_CONSOLE.lock().take() {
+        early_console.write("[kruspix] [INFO] Replacing early console with system console\n");
+        kprintln!("[INFO] Early console replaced by system console");
+    }
 }
 
 pub fn register_early_console(console: &'static dyn Console) {
     let mut early_console = EARLY_CONSOLE.lock();
 
-    if early_console.is_some() {
-        kprintln!("WARNING: early console already registered, overwriting...");
-    } else {
+    if early_console.is_none() {
         let mut buf = BOOT_CONSOLE.lock();
         for byte in buf.iter() {
             let slice = core::slice::from_ref(byte);
@@ -48,6 +52,9 @@ pub fn register_early_console(console: &'static dyn Console) {
 fn console_write_str(s: &str) {
     let consoles = SYSTEM_CONSOLES.lock();
     if !consoles.is_empty() {
+        for console in consoles.iter() {
+            console.write(s);
+        }
         return;
     }
     drop(consoles);

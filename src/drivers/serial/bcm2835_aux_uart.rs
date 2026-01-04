@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use alloc::string::String;
 use alloc::sync::Arc;
@@ -7,9 +7,11 @@ use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::drivers::{Device, DriverInitError, DriverRegistry, PlatformDriver};
-use crate::kernel::console::{Console, register_early_console};
+use crate::kernel::console::{Console, register_early_console, register_console};
+use crate::kernel::devicetree::std_prop::StandardProperties;
 use crate::kernel::devicetree::{fdt::Fdt, node::Node};
 use crate::kprintln;
+use crate::mm::map_io_region;
 
 /// I/O Data (8 bits)
 const AUX_MU_IO_REG_OFFSET: usize = 0x0;
@@ -41,37 +43,92 @@ struct MiniUartDevice {
     reg_base: usize,
 }
 
+impl MiniUartDevice {
+    fn new(id: String, reg_base: usize) -> Self {
+        Self { id, reg_base }
+    }
+}
+
 impl Device for MiniUartDevice {
     fn id(&self) -> &str {
         self.id.as_str()
     }
 
-    fn global_setup(self: Arc<Self>, _node: &Node) -> Result<(), DriverInitError> {
-        todo!()
+    fn global_setup(self: Arc<Self>, node: &Node) -> Result<(), DriverInitError> {
+        let skip_init = node
+            .properties()
+            .iter()
+            .any(|prop| prop.name() == "skip-init");
+        if skip_init {
+            kprintln!("[INFO] Mini UART initialization skipped via 'skip-init' property");
+        } else {
+            todo!();
+        }
+
+        register_console(self.clone());
+
+        // TODO: register the interrupt handler
+        // what about input?
+
+        Ok(())
     }
 
     fn local_setup(self: Arc<Self>) -> Result<(), DriverInitError> {
-        todo!()
+        Ok(())
     }
 }
 
 impl Console for MiniUartDevice {
-    fn write(&self, _s: &str) {
-        todo!()
+    fn write(&self, s: &str) {
+        let aux_mu_lsr_reg = (self.reg_base + AUX_MU_LSR_REG_OFFSET) as *mut u32;
+        let aux_mu_io_reg = (self.reg_base + AUX_MU_IO_REG_OFFSET) as *mut u32;
+
+        let write_byte = |byte: u8| unsafe {
+            loop {
+                if (read_volatile(aux_mu_lsr_reg) & TX_EMPTY) != 0 {
+                    break;
+                }
+                core::hint::spin_loop();
+            }
+
+            write_volatile(aux_mu_io_reg, byte as u32);
+        };
+
+        for byte in s.bytes() {
+            if byte == b'\n' {
+                write_byte(b'\r');
+            }
+            write_byte(byte);
+        }
     }
 }
 
 pub struct MiniUartDriver {
-    reg_base: AtomicUsize,
+    early_reg_base: AtomicUsize,
     dev_registry: DriverRegistry<MiniUartDevice>,
 }
 
 impl MiniUartDriver {
     const fn new() -> Self {
         Self {
-            reg_base: AtomicUsize::new(0),
+            early_reg_base: AtomicUsize::new(0),
             dev_registry: DriverRegistry::new(),
         }
+    }
+}
+
+// Implement Device for MiniUartDriver to satisfy the trait requirements.
+impl Device for MiniUartDriver {
+    fn id(&self) -> &str {
+        "brcm,bcm2835-aux-uart"
+    }
+
+    fn global_setup(self: Arc<Self>, _node: &Node) -> Result<(), DriverInitError> {
+        Ok(())
+    }
+
+    fn local_setup(self: Arc<Self>) -> Result<(), DriverInitError> {
+        Ok(())
     }
 }
 
@@ -80,7 +137,7 @@ impl Console for MiniUartDriver {
     /// # Safety
     /// This function is only suitable for early console output during boot.
     fn write(&self, s: &str) {
-        let reg_base = self.reg_base.load(Ordering::Acquire);
+        let reg_base = self.early_reg_base.load(Ordering::Acquire);
         let aux_mu_lsr_reg = (reg_base + AUX_MU_LSR_REG_OFFSET) as *mut u32;
         let aux_mu_io_reg = (reg_base + AUX_MU_IO_REG_OFFSET) as *mut u32;
         let write_byte = |byte: u8| unsafe {
@@ -111,41 +168,40 @@ impl PlatformDriver for MiniUartDriver {
     }
 
     fn try_init(&self, node: &Node) -> Result<(), DriverInitError> {
-        // TODO:
-        // 1. initialize the hardware
-        // 2. map the physical register address to IO PERIPHERAL space
-        // 3. register the MiniUartDevice instance as a console device (capability)
+        kprintln!("{:?} try init", self.compatible());
 
-        // TODO: more considerations:
-        // - analyze the device bindings (properties) and handle all of them
-        //   + reg => map physical address to IO PERIPHERAL space
-        //   + status => check if "okay"
-        //   + phandle => register the phandle for other devices to reference?! (this is not task of driver but rather of devicetree manager)
-        //   + skip-init => skip initialization if present (but still provide init functionality and test it)
-        //   + pinctrl-0 and pinctrl-names => figure what how to handle this (probably pin controller driver should handle this)
-        //   + clocks => request clock via subsystem and enable it
-        //   + interrupts => register handler for the interrupts for async operation without polling
-        // - this device driver seems to depend on other subsystems (clock, pin controller, interrupt controller)
-        //   therefore it is probably a good idea to start with the most essential dependencies first
-
-        for prop in node.properties() {
-            kprintln!("-> Property: {}", prop.name());
+        let reg = node.reg().ok_or(DriverInitError::DeviceTreeError)?;
+        if reg.len() != 1 {
+            kprintln!(
+                "[ERROR]{:?} invalid 'reg' property: expected 1 region, got {}",
+                self.compatible(),
+                reg.len()
+            );
+            return Err(DriverInitError::DeviceTreeError);
         }
 
-        // TODO:
-        // dev.global_setup();
+        let (phys_addr, length) = node
+            .resolve_phys_address_and_length(0)
+            .ok_or(DriverInitError::DeviceTreeError)?;
 
-        Err(DriverInitError::ToDo)
+        let addr = map_io_region(phys_addr, length);
+        let dev = MiniUartDevice::new(node.path(), addr);
+        let dev = Arc::new(dev);
+        self.dev_registry.add_device(node.path(), dev.clone());
+
+        dev.clone().global_setup(node)?;
+
+        Ok(())
     }
 
     fn get_device(&self, id: &str) -> Option<Arc<dyn Device>> {
-        todo!()
+        self.dev_registry.get_device_opaque(id)
     }
 
     fn early_init(&'static self, fdt: &Fdt, path: &str) {
         if let Some(addr) = fdt.resolve_phys_addr(path) {
             if self
-                .reg_base
+                .early_reg_base
                 .compare_exchange(0, addr, Ordering::Release, Ordering::Relaxed)
                 .is_ok()
             {

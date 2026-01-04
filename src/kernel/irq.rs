@@ -5,6 +5,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::drivers::Device;
 use crate::kernel::devicetree::get_devicetree;
 use crate::kernel::devicetree::interrupts::{
     InterruptControllerNode, InterruptControllerOrNexusNode, InterruptGeneratingNode,
@@ -25,7 +26,7 @@ pub enum IrqError {
 
 pub type IrqResult<T> = Result<T, IrqError>;
 
-pub trait InterruptController: Send + Sync {
+pub trait InterruptController: Device + Send + Sync {
     fn set_virq_base(&self, _virq_base: u32) -> IrqResult<()> {
         Ok(())
     }

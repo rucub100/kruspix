@@ -4,6 +4,7 @@
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
+use crate::drivers::Device;
 use crate::kernel::sync::SpinLock;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -16,7 +17,7 @@ pub enum ClockError {
 
 pub type ClockResult<T> = Result<T, ClockError>;
 
-pub trait Clock: Send + Sync {
+pub trait Clock: Device + Send + Sync {
     fn name(&self) -> &str;
     fn prepare(&self) -> ClockResult<()>;
     fn enable(&self) -> ClockResult<()>;

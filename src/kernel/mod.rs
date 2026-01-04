@@ -5,16 +5,17 @@ use crate::mm::virt_to_phys;
 
 pub mod clk;
 pub mod console;
+pub mod cpu;
 pub mod devicetree;
 pub mod irq;
 pub mod power;
 pub mod print;
+pub mod rng;
 pub mod sched;
 pub mod sync;
+pub mod terminal;
 pub mod time;
 pub mod watchdog;
-pub mod cpu;
-pub mod rng;
 
 pub fn kernel_addr_size() -> (usize, usize) {
     let kernel_start: usize;

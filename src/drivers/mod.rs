@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use alloc::collections::BTreeMap;
 use alloc::string::String;
@@ -203,14 +203,12 @@ pub fn init_platform_drivers() {
         })
         .collect();
 
-    kprintln!("Match devices from Device Tree:");
     let mut progress = true;
     while progress && !uninitialized_device_nodes.is_empty() {
         progress = false;
 
         uninitialized_device_nodes.retain(|node| {
             if let Some(driver) = match_driver(node) {
-                kprintln!("-> MATCH");
                 return match driver.try_init(node) {
                     Ok(_) => {
                         kprintln!("-> Driver initialized successfully");
@@ -229,7 +227,6 @@ pub fn init_platform_drivers() {
                 };
             }
 
-            kprintln!("-> No matching driver found");
             false
         });
     }
@@ -238,17 +235,13 @@ pub fn init_platform_drivers() {
 fn match_driver(node: &Node) -> Option<&'static dyn PlatformDriver> {
     let compatible_list = node.compatible()?;
 
-    kprintln!("Node {} compatible with {:?}", node.path(), compatible_list);
-    if let Some(x) = node.phandle() {
-        kprintln!("-> has phandle {}", x.0);
-    }
-
     for compatible in compatible_list {
         let driver = PLATFORM_DRIVERS
             .iter()
             .find(|d| d.compatible().contains(&compatible.as_str()));
 
         if driver.is_some() {
+            kprintln!("Node {} compatible with {:?}", node.path(), compatible_list);
             return driver.copied();
         }
     }

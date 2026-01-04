@@ -3,6 +3,7 @@
 
 use alloc::sync::Arc;
 
+use crate::drivers::Device;
 use crate::kernel::sync::OnceLock;
 
 pub enum RngError {
@@ -13,7 +14,7 @@ pub enum RngError {
 
 pub type RngResult<T> = Result<T, RngError>;
 
-pub trait RandomNumberGenerator: Send + Sync {
+pub trait RandomNumberGenerator: Device + Send + Sync {
     fn name(&self) -> &str;
     fn enable(&self) -> RngResult<()>;
     fn disable(&self) -> RngResult<()>;
