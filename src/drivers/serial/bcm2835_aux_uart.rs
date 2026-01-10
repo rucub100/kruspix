@@ -3,13 +3,20 @@
 
 use alloc::string::String;
 use alloc::sync::Arc;
+use alloc::vec;
+use alloc::vec::Vec;
 use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::common::ring_array::RingArray;
 use crate::drivers::{Device, DriverInitError, DriverRegistry, PlatformDriver};
-use crate::kernel::console::{Console, register_early_console, register_console};
+use crate::kernel::console::{register_console, register_early_console};
+use crate::kernel::devicetree::interrupts::InterruptGeneratingNode;
 use crate::kernel::devicetree::std_prop::StandardProperties;
 use crate::kernel::devicetree::{fdt::Fdt, node::Node};
+use crate::kernel::irq::{InterruptHandler, enable_irq, register_handler, resolve_virq};
+use crate::kernel::sync::SpinLock;
+use crate::kernel::terminal::{InputDevice, OutputDevice, register_input, register_output};
 use crate::kprintln;
 use crate::mm::map_io_region;
 
@@ -37,15 +44,34 @@ const AUX_MU_STAT_REG_OFFSET: usize = 0x24;
 const AUX_MU_BAUD_REG_OFFSET: usize = 0x28;
 
 const TX_EMPTY: u32 = 1 << 5;
+const RX_READY: u32 = 1;
 
 struct MiniUartDevice {
     id: String,
     reg_base: usize,
+    buffer: SpinLock<RingArray<u8, 1024>>,
 }
 
 impl MiniUartDevice {
     fn new(id: String, reg_base: usize) -> Self {
-        Self { id, reg_base }
+        Self {
+            id,
+            reg_base,
+            buffer: SpinLock::new(RingArray::new(0)),
+        }
+    }
+
+    fn read_byte(&self) -> Option<u8> {
+        let aux_mu_lsr_reg = (self.reg_base + AUX_MU_LSR_REG_OFFSET) as *mut u32;
+        let aux_mu_io_reg = (self.reg_base + AUX_MU_IO_REG_OFFSET) as *mut u32;
+
+        unsafe {
+            if (read_volatile(aux_mu_lsr_reg) & RX_READY) != 0 {
+                Some((read_volatile(aux_mu_io_reg) & 0xFF) as u8)
+            } else {
+                None
+            }
+        }
     }
 }
 
@@ -65,10 +91,22 @@ impl Device for MiniUartDevice {
             todo!();
         }
 
-        register_console(self.clone());
+        // enable interrupts
+        let aux_mu_ier_reg = (self.reg_base + AUX_MU_IER_REG_OFFSET) as *mut u32;
+        unsafe {
+            let aux_mu_ier = read_volatile(aux_mu_ier_reg);
+            write_volatile(aux_mu_ier_reg, aux_mu_ier | 0b0101);
+        }
 
-        // TODO: register the interrupt handler
-        // what about input?
+        if node.interrupts().is_some() || node.interrupts_extended().is_some() {
+            let virq = resolve_virq(node, 0).map_err(|_| DriverInitError::Retry)?;
+            register_handler(virq, self.clone()).map_err(|_| DriverInitError::Retry)?;
+            enable_irq(virq).map_err(|_| DriverInitError::Retry)?
+        }
+
+        register_console(self.clone());
+        register_output(self.clone());
+        register_input(self.clone());
 
         Ok(())
     }
@@ -78,8 +116,8 @@ impl Device for MiniUartDevice {
     }
 }
 
-impl Console for MiniUartDevice {
-    fn write(&self, s: &str) {
+impl OutputDevice for MiniUartDevice {
+    fn write(&self, bytes: &[u8]) {
         let aux_mu_lsr_reg = (self.reg_base + AUX_MU_LSR_REG_OFFSET) as *mut u32;
         let aux_mu_io_reg = (self.reg_base + AUX_MU_IO_REG_OFFSET) as *mut u32;
 
@@ -94,11 +132,32 @@ impl Console for MiniUartDevice {
             write_volatile(aux_mu_io_reg, byte as u32);
         };
 
-        for byte in s.bytes() {
-            if byte == b'\n' {
+        for byte in bytes {
+            if *byte == b'\n' {
                 write_byte(b'\r');
             }
-            write_byte(byte);
+            write_byte(*byte);
+        }
+    }
+}
+
+impl InputDevice for MiniUartDevice {
+    fn read(&self) -> Vec<u8> {
+        let mut buffer = self.buffer.lock_irq();
+        let len = buffer.len();
+
+        let mut output = vec![0u8; len];
+        buffer.drain(&mut output);
+        output
+    }
+}
+
+impl InterruptHandler for MiniUartDevice {
+    fn handle_irq(&self, virq: u32) {
+        // TODO: check the cause via IIR register and read data if available
+        let mut buffer = self.buffer.lock();
+        while let Some(byte) = self.read_byte() {
+            buffer.push(byte);
         }
     }
 }
@@ -132,11 +191,11 @@ impl Device for MiniUartDriver {
     }
 }
 
-impl Console for MiniUartDriver {
+impl OutputDevice for MiniUartDriver {
     /// Write a string to the mini UART.
     /// # Safety
     /// This function is only suitable for early console output during boot.
-    fn write(&self, s: &str) {
+    fn write(&self, bytes: &[u8]) {
         let reg_base = self.early_reg_base.load(Ordering::Acquire);
         let aux_mu_lsr_reg = (reg_base + AUX_MU_LSR_REG_OFFSET) as *mut u32;
         let aux_mu_io_reg = (reg_base + AUX_MU_IO_REG_OFFSET) as *mut u32;
@@ -153,11 +212,11 @@ impl Console for MiniUartDriver {
             }
         };
 
-        for byte in s.bytes() {
-            if byte == b'\n' {
+        for byte in bytes {
+            if *byte == b'\n' {
                 write_byte(b'\r');
             }
-            write_byte(byte);
+            write_byte(*byte);
         }
     }
 }

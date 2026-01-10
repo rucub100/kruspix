@@ -23,13 +23,44 @@
 //! or by composing input-only and output-only devices together according to some logic
 //! (like matching local keyboards with framebuffers).
 
-use crate::drivers::Device;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
 
-pub trait Input: Device + Send + Sync {
-    // TODO: define input methods
-    fn read(&self);
+use crate::drivers::Device;
+use crate::kernel::devicetree::get_devicetree;
+use crate::kernel::sync::{OnceLock, SpinLock};
+
+pub trait InputDevice: Device {
+    fn read(&self) -> Vec<u8>;
 }
 
-pub trait Terminal: Send + Sync {
-    // TODO: define terminal methods
+pub trait OutputDevice: Device {
+    fn write(&self, bytes: &[u8]);
+}
+
+pub struct SystemTerminal {
+    input: Arc<dyn InputDevice>,
+    output: Arc<dyn OutputDevice>,
+}
+
+static INPUT_DEVICES: SpinLock<Vec<Arc<dyn InputDevice>>> = SpinLock::new(Vec::new());
+static OUTPUT_DEVICES: SpinLock<Vec<Arc<dyn OutputDevice>>> = SpinLock::new(Vec::new());
+
+static SYSTEM_TERMINAL: OnceLock<SystemTerminal> = OnceLock::new();
+
+pub fn register_input(dev: Arc<dyn InputDevice>) {
+    INPUT_DEVICES.lock().push(dev);
+}
+
+pub fn register_output(dev: Arc<dyn OutputDevice>) {
+    OUTPUT_DEVICES.lock().push(dev);
+}
+
+pub(super) fn init() {
+    // TODO:
+    // read the devicetree /chosen node for stdout-path and stdin-path properties
+    // find the corresponding devices among registered input/output devices
+    // set up the primary terminal accordingly
+
+    let dt = get_devicetree().expect("Failed to get devicetree");
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use crate::mm::virt_to_phys;
 
@@ -16,6 +16,10 @@ pub mod sync;
 pub mod terminal;
 pub mod time;
 pub mod watchdog;
+
+pub fn init_modules() {
+    terminal::init();
+}
 
 pub fn kernel_addr_size() -> (usize, usize) {
     let kernel_start: usize;

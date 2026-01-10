@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 #![no_std]
 #![no_main]
@@ -12,8 +12,8 @@ use kruspix::arch::{kernel::setup::setup_arch, mm::mmu::setup_page_tables};
 use kruspix::drivers::init_platform_drivers;
 use kruspix::kernel::cpu::{get_local_data, init_local_data};
 use kruspix::kernel::devicetree::init_devicetree;
+use kruspix::kernel::init_modules;
 use kruspix::kernel::irq::register_handler;
-use kruspix::kernel::power::{system_power_off, system_restart};
 use kruspix::kernel::rng::get_rng;
 use kruspix::kernel::time::uptime;
 use kruspix::mm::init_heap;
@@ -30,8 +30,8 @@ pub extern "C" fn start_kernel() -> ! {
     init_local_data();
     init_devicetree();
     init_platform_drivers();
-
     local_enable_irq_fiq();
+    init_modules();
 
     let local = get_local_data();
     let alarm_handler = Arc::new(|_| {
@@ -50,9 +50,9 @@ pub extern "C" fn start_kernel() -> ! {
         }
 
         alarm.cancel();
-
-        kprintln!("SYSTEM POWER OFF TEST");
-        system_power_off();
+        let mut ticks = alarm.duration_to_ticks(now);
+        ticks += alarm.duration_to_ticks(core::time::Duration::from_secs(1));
+        alarm.schedule_at(ticks);
     });
 
     if let Some(alarm) = local.get_alarm() {
@@ -71,6 +71,8 @@ pub extern "C" fn start_kernel() -> ! {
     // TODO: Initialize device drivers
     // TODO: setup root user space process a.k.a. init
     // TODO: Enable interrupts and start normal operation
+
+    // TODO: simple kernel shell or REPL for testing purposes
 
     kprintln!("Kernel initialization complete. Entering idle loop.");
     loop {

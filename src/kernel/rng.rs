@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use alloc::sync::Arc;
 
@@ -14,7 +14,7 @@ pub enum RngError {
 
 pub type RngResult<T> = Result<T, RngError>;
 
-pub trait RandomNumberGenerator: Device + Send + Sync {
+pub trait RandomNumberGenerator: Device {
     fn name(&self) -> &str;
     fn enable(&self) -> RngResult<()>;
     fn disable(&self) -> RngResult<()>;

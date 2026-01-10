@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 //! BCM2835 Random Number Generator (RNG) driver.
 //!
@@ -85,8 +85,7 @@ impl Device for RngDevice {
 
         self.enable().map_err(|_| DriverInitError::DeviceFailed)?;
 
-        register_rng(self.clone() as Arc<dyn RandomNumberGenerator>)
-            .map_err(|_| DriverInitError::DeviceFailed)?;
+        register_rng(self.clone()).map_err(|_| DriverInitError::DeviceFailed)?;
 
         Ok(())
     }

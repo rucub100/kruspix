@@ -53,8 +53,6 @@ pub trait PlatformDriver: Send + Sync {
     /// Driver's factory method to initialize a device instance from a device tree node.
     fn try_init(&self, node: &Node) -> Result<(), DriverInitError>;
 
-    fn get_device(&self, id: &str) -> Option<Arc<dyn Device>>;
-
     /// Optional per-core local initialization method, maybe called during core boot.
     fn local_init(&self, id: &str) -> Result<(), DriverInitError> {
         if let Some(device) = self.get_device(id) {
@@ -63,6 +61,8 @@ pub trait PlatformDriver: Send + Sync {
 
         Ok(())
     }
+
+    fn get_device(&self, id: &str) -> Option<Arc<dyn Device>>;
 
     /// Optional static initialization method, maybe called during early boot.
     fn early_init(&'static self, _fdt: &Fdt, _path: &str) {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use alloc::string::String;
 use alloc::sync::Arc;
@@ -44,7 +44,7 @@ impl Device for GenericTimerDevice {
             }
         }
 
-        register_global_timer(self.clone() as Arc<dyn Timer>);
+        register_global_timer(self.clone());
 
         Ok(())
     }
@@ -62,7 +62,7 @@ impl Device for GenericTimerDevice {
         }
 
         enable_irq(self.virq).map_err(|_| DriverInitError::ToDo)?;
-        register_local_alarm(self.clone() as Arc<dyn Alarm>);
+        register_local_alarm(self.clone());
 
         Ok(())
     }

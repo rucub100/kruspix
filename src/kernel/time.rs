@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -36,7 +36,7 @@ pub fn convert_ticks_to_duration(frequency_hz: u128, ticks: u64) -> Duration {
     Duration::new(secs as u64, nanos as u32)
 }
 
-pub trait Timer: Device + Send + Sync {
+pub trait Timer: Device {
     fn counter(&self) -> u64;
     fn frequency_hz(&self) -> u64;
     fn max_ticks(&self) -> u64;
@@ -58,7 +58,7 @@ pub trait Timer: Device + Send + Sync {
     }
 }
 
-pub trait Alarm: Device + Send + Sync {
+pub trait Alarm: Device {
     fn schedule_at(&self, ticks: u64);
     fn virq(&self) -> u32;
     fn cancel(&self);
@@ -81,7 +81,7 @@ pub trait Alarm: Device + Send + Sync {
     }
 }
 
-pub trait RealTimeClock: Device + Send + Sync {}
+pub trait RealTimeClock: Device {}
 
 static GLOBAL_TIMERS: SpinLock<Vec<Arc<dyn Timer>>> = SpinLock::new(Vec::new());
 static GLOBAL_SYSTEM_TIMER: SpinLock<Option<Arc<dyn Timer>>> = SpinLock::new(None);

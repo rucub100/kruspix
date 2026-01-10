@@ -7,11 +7,17 @@ use core::fmt::{Result, Write};
 
 use super::sync::SpinLock;
 use crate::common::ring_array::RingArray;
-use crate::drivers::Device;
+use crate::kernel::terminal::OutputDevice;
 use crate::kprintln;
 
-pub trait Console: Device + Send + Sync {
-    fn write(&self, s: &str);
+pub trait Console: OutputDevice {
+    fn write_str(&self, s: &str);
+}
+
+impl<T: OutputDevice> Console for T {
+    fn write_str(&self, s: &str) {
+        self.write(s.as_bytes());
+    }
 }
 
 /// A buffer to hold early boot messages before the early console is registered
@@ -27,7 +33,7 @@ pub fn register_console(console: Arc<dyn Console>) {
     drop(consoles);
 
     if let Some(early_console) = EARLY_CONSOLE.lock().take() {
-        early_console.write("[kruspix] [INFO] Replacing early console with system console\n");
+        early_console.write_str("[kruspix] [INFO] Replacing early console with system console\n");
         kprintln!("[INFO] Early console replaced by system console");
     }
 }
@@ -40,7 +46,7 @@ pub fn register_early_console(console: &'static dyn Console) {
         for byte in buf.iter() {
             let slice = core::slice::from_ref(byte);
             if let Ok(msg) = core::str::from_utf8(slice) {
-                console.write(msg);
+                console.write_str(msg);
             }
         }
         buf.clear();
@@ -53,7 +59,7 @@ fn console_write_str(s: &str) {
     let consoles = SYSTEM_CONSOLES.lock();
     if !consoles.is_empty() {
         for console in consoles.iter() {
-            console.write(s);
+            console.write_str(s);
         }
         return;
     }
@@ -61,7 +67,7 @@ fn console_write_str(s: &str) {
 
     let early_console = EARLY_CONSOLE.lock();
     if let Some(console) = *early_console {
-        console.write(s);
+        console.write_str(s);
     } else {
         let mut buf = BOOT_CONSOLE.lock();
         for byte in s.bytes() {

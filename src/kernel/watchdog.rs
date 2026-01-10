@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -8,7 +8,7 @@ use core::time::Duration;
 use crate::drivers::Device;
 use crate::kernel::sync::SpinLock;
 
-pub trait Watchdog: Device + Send + Sync {
+pub trait Watchdog: Device {
     fn is_running(&self) -> bool;
     fn start(&self);
     fn stop(&self);

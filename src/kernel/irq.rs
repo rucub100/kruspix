@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -26,7 +26,7 @@ pub enum IrqError {
 
 pub type IrqResult<T> = Result<T, IrqError>;
 
-pub trait InterruptController: Device + Send + Sync {
+pub trait InterruptController: Device {
     fn set_virq_base(&self, _virq_base: u32) -> IrqResult<()> {
         Ok(())
     }

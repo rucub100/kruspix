@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 pub struct RingArray<T, const N: usize> {
     buffer: [T; N],
@@ -28,7 +28,8 @@ impl<T: Copy + Default, const N: usize> RingArray<T, N> {
     }
 
     pub fn clear(&mut self) {
-        self.buffer = [T::default(); N];
+        // Note: Ignore this for performance reasons
+        // self.buffer = [T::default(); N];
         self.index = 0;
         self.full = false;
     }
@@ -39,6 +40,21 @@ impl<T: Copy + Default, const N: usize> RingArray<T, N> {
             pos: if self.full { self.index } else { 0 },
             count: self.len(),
         }
+    }
+
+    pub fn drain(&mut self, dst: &mut [T]) -> usize {
+        let len = self.len().min(dst.len());
+        let start = if self.full { self.index } else { 0 };
+
+        let part = (N - start).min(len);
+        dst[..part].copy_from_slice(&self.buffer[start..start + part]);
+
+        if len > part {
+            dst[part..len].copy_from_slice(&self.buffer[..len - part]);
+        }
+
+        self.clear();
+        len
     }
 
     pub fn len(&self) -> usize {
