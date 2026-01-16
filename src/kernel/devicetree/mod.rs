@@ -10,7 +10,7 @@ use alloc::vec::Vec;
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::kernel::devicetree::prop::Property;
+use crate::kernel::devicetree::prop::{Property, PropertyValue};
 use crate::kernel::sync::OnceLock;
 
 use crate::kernel::devicetree::std_prop::PHANDLE;
@@ -23,6 +23,8 @@ pub mod misc_prop;
 pub mod node;
 pub mod prop;
 pub mod std_prop;
+
+const PATH_SEPARATOR: char = '/';
 
 static FDT_ADDR: AtomicUsize = AtomicUsize::new(0);
 static DEVICE_TREE: OnceLock<Arc<DeviceTree>> = OnceLock::new();
@@ -171,6 +173,44 @@ impl DeviceTree {
         // SAFETY: nodes are boxed and the devicetree is protected by an Arc,
         // so the pointer is valid as long as the devicetree exists (which is forever)
         unsafe { ptr.as_ref() }
+    }
+
+    fn to_path<'a>(&'a self, alias_or_path: &'a str) -> Option<&'a str> {
+        if alias_or_path.is_empty() {
+            return None;
+        }
+
+        if alias_or_path.contains(PATH_SEPARATOR) {
+            return Some(alias_or_path);
+        }
+
+        self.aliases()
+            .iter()
+            .flat_map(|alias_node| alias_node.properties())
+            .find(|prop| prop.name() == alias_or_path)
+            .and_then(|prop| match prop.value() {
+                PropertyValue::Unknown(value) => value.try_into().ok(),
+                _ => None,
+            })
+    }
+
+    pub fn node_by_path(&self, path: &str) -> Option<&Node> {
+        let path = self.to_path(path)?;
+
+        let mut current_node = self.root();
+        for segment in path.split(PATH_SEPARATOR).filter(|s| !s.is_empty()) {
+            let next_node = &current_node
+                .children()
+                .iter()
+                .find(|node| node.name() == segment);
+            if let Some(next_node) = next_node {
+                current_node = next_node;
+            } else {
+                return None;
+            }
+        }
+
+        Some(current_node)
     }
 
     pub fn aliases(&self) -> Option<&Node> {

@@ -31,6 +31,15 @@ use crate::kernel::devicetree::get_devicetree;
 use crate::kernel::devicetree::misc_prop::MiscellaneousProperties;
 use crate::kernel::sync::{OnceLock, SpinLock};
 
+#[derive(Debug)]
+pub enum TerminalError {
+    NoInputDevice,
+    NoOutputDevice,
+    AlreadyInitialized,
+}
+
+pub type TerminalResult<T> = Result<T, TerminalError>;
+
 pub trait InputDevice: Device {
     fn read(&self) -> Vec<u8>;
 }
@@ -40,8 +49,8 @@ pub trait OutputDevice: Device {
 }
 
 pub struct SystemTerminal {
-    input: Arc<dyn InputDevice>,
     output: Arc<dyn OutputDevice>,
+    input: Arc<dyn InputDevice>,
 }
 
 static INPUT_DEVICES: SpinLock<Vec<Arc<dyn InputDevice>>> = SpinLock::new(Vec::new());
@@ -57,17 +66,111 @@ pub fn register_output(dev: Arc<dyn OutputDevice>) {
     OUTPUT_DEVICES.lock().push(dev);
 }
 
-pub(super) fn init() {
-    // TODO:
-    // read the devicetree /chosen node for stdout-path and stdin-path properties
-    // find the corresponding devices among registered input/output devices
-    // set up the primary terminal accordingly
+pub(super) fn init() -> TerminalResult<()> {
+    let output_devs = OUTPUT_DEVICES.lock();
+    let input_devs = INPUT_DEVICES.lock();
+
+    if output_devs.is_empty() {
+        return Err(TerminalError::NoOutputDevice);
+    }
+
+    if input_devs.is_empty() {
+        return Err(TerminalError::NoInputDevice);
+    }
+
+    let mut system_output: Option<Arc<dyn OutputDevice>> = None;
+    let mut system_input: Option<Arc<dyn InputDevice>> = None;
 
     let dt = get_devicetree().expect("Failed to get devicetree");
     if let Some(chosen) = dt.chosen() {
-        
         if let Some(stdout_path) = chosen.stdout_path() {
-            // TODO get node by path or alias
+            let path = match stdout_path.split_once(':') {
+                Some((p, _)) => p,
+                None => stdout_path,
+            };
+
+            // prioritize stdout-path specified device
+            if let Some(stdout_node) = dt.node_by_path(path)
+                && let Some(stdout_dev) = output_devs
+                    .iter()
+                    .find(|dev| dev.id() == stdout_node.path())
+            {
+                system_output = Some(stdout_dev.clone());
+
+                // check if the same device also supports input
+                if let Some(input_dev) =
+                    input_devs.iter().find(|dev| dev.id() == stdout_node.path())
+                {
+                    system_input = Some(input_dev.clone());
+                } else if let Some(stdin_path) = chosen.stdin_path() {
+                    let path = match stdout_path.split_once(':') {
+                        Some((p, _)) => p,
+                        None => stdout_path,
+                    };
+
+                    // or else check if stdin-path is specified
+                    if let Some(stdin_node) = dt.node_by_path(path)
+                        && let Some(stdin_dev) =
+                            input_devs.iter().find(|dev| dev.id() == stdin_node.path())
+                    {
+                        system_input = Some(stdin_dev.clone());
+                    }
+                }
+            } else if let Some(stdin_node) = dt.node_by_path(path)
+                && let Some(stdin_dev) = input_devs.iter().find(|dev| dev.id() == stdin_node.path())
+            {
+                system_input = Some(stdin_dev.clone());
+
+                // also check if stdin-path is also an output device
+                if let Some(output_dev) =
+                    output_devs.iter().find(|dev| dev.id() == stdin_node.path())
+                {
+                    system_output = Some(output_dev.clone());
+                }
+            }
         }
     }
+
+    if system_output.is_none() {
+        system_output = Some(
+            output_devs
+                .iter()
+                .find(|output_dev| {
+                    input_devs
+                        .iter()
+                        .any(|input_dev| input_dev.id() == output_dev.id())
+                })
+                .unwrap_or(
+                    // SAFETY: we check that output_devs is not empty above
+                    output_devs.first().unwrap(),
+                )
+                .clone(),
+        );
+    }
+
+    if system_input.is_none() {
+        system_input = Some(
+            input_devs
+                .iter()
+                .find(|input_dev|
+                    // SAFETY: system_output is guaranteed to be Some here
+                    input_dev.id() == system_output.as_ref().unwrap().id())
+                .unwrap_or(
+                    // SAFETY: we check that output_devs is not empty above
+                    input_devs.first().unwrap(),
+                )
+                .clone(),
+        );
+    }
+
+    let terminal = SystemTerminal {
+        output: system_output.unwrap(),
+        input: system_input.unwrap(),
+    };
+
+    SYSTEM_TERMINAL
+        .set(terminal)
+        .map_err(|_| TerminalError::AlreadyInitialized)?;
+
+    Ok(())
 }

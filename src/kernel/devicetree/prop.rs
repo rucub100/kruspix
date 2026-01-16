@@ -278,6 +278,16 @@ impl TryInto<String> for &UnknownProperty {
     }
 }
 
+impl<'a> TryInto<&'a str> for &'a UnknownProperty {
+    type Error = ();
+
+    fn try_into(self) -> Result<&'a str, Self::Error> {
+        CStr::from_bytes_with_nul(&self.0)
+            .map_err(|_| ())
+            .and_then(|cstr| cstr.to_str().map_err(|_| ()))
+    }
+}
+
 impl TryInto<Vec<String>> for &UnknownProperty {
     type Error = ();
 

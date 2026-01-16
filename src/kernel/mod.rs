@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
+use crate::kprintln;
 use crate::mm::virt_to_phys;
 
 pub mod clk;
@@ -18,7 +19,10 @@ pub mod time;
 pub mod watchdog;
 
 pub fn init_modules() {
-    terminal::init();
+    match terminal::init() {
+        Ok(_) => kprintln!("[INFO] Terminal module initialized successfully"),
+        Err(e) => kprintln!("[WARNING] Failed to initialize terminal module: {:?}", e),
+    }
 }
 
 pub fn kernel_addr_size() -> (usize, usize) {
