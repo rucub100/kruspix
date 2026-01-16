@@ -12,7 +12,7 @@ use super::interrupts::{
     INTERRUPT_PARENT, INTERRUPTS, INTERRUPTS_EXTENDED, InterruptMap, InterruptMapMask, Interrupts,
     InterruptsProperty,
 };
-use super::misc_prop::CLOCK_FREQUENCY;
+use super::misc_prop::{BOOT_ARGS, CLOCK_FREQUENCY, STDIN_PATH, STDOUT_PATH};
 use super::node::Node;
 use super::std_prop::{
     ADDRESS_CELLS, AddressCellsValue, COMPATIBLE, DMA_COHERENT, DMA_NONCOHERENT, DMA_RANGES,
@@ -187,6 +187,15 @@ impl Property {
                     8 => ClockFrequency::U64(prop.value_as_u64().unwrap()),
                     _ => unreachable!(),
                 },
+            )),
+            BOOT_ARGS => PropertyValue::Miscellaneous(MiscellaneousProperty::BootArgs(
+                prop.value_as_string().unwrap().to_string(),
+            )),
+            STDOUT_PATH => PropertyValue::Miscellaneous(MiscellaneousProperty::StdoutPath(
+                prop.value_as_string().unwrap().to_string(),
+            )),
+            STDIN_PATH => PropertyValue::Miscellaneous(MiscellaneousProperty::StdinPath(
+                prop.value_as_string().unwrap().to_string(),
             )),
             // Fallbacks
             _ if prop.value().is_empty() => PropertyValue::Empty,

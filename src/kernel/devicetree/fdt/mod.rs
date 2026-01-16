@@ -97,7 +97,7 @@ impl Fdt {
         self.node_iter().find(|node| node.is_aliases())
     }
 
-    pub fn alias_path<'a>(&'a self, alias: &'a str) -> Option<&'a str> {
+    fn alias_path<'a>(&'a self, alias: &'a str) -> Option<&'a str> {
         if alias.is_empty() {
             return None;
         }

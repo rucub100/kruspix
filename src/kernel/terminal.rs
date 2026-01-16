@@ -28,6 +28,7 @@ use alloc::vec::Vec;
 
 use crate::drivers::Device;
 use crate::kernel::devicetree::get_devicetree;
+use crate::kernel::devicetree::misc_prop::MiscellaneousProperties;
 use crate::kernel::sync::{OnceLock, SpinLock};
 
 pub trait InputDevice: Device {
@@ -63,4 +64,10 @@ pub(super) fn init() {
     // set up the primary terminal accordingly
 
     let dt = get_devicetree().expect("Failed to get devicetree");
+    if let Some(chosen) = dt.chosen() {
+        
+        if let Some(stdout_path) = chosen.stdout_path() {
+            // TODO get node by path or alias
+        }
+    }
 }

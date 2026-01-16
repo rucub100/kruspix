@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
@@ -19,10 +19,10 @@ use node::Node;
 
 pub mod fdt;
 pub mod interrupts;
+pub mod misc_prop;
 pub mod node;
 pub mod prop;
 pub mod std_prop;
-pub mod misc_prop;
 
 static FDT_ADDR: AtomicUsize = AtomicUsize::new(0);
 static DEVICE_TREE: OnceLock<Arc<DeviceTree>> = OnceLock::new();
@@ -61,7 +61,7 @@ pub struct DeviceTree {
     phandle_map: BTreeMap<u32, *const Node>,
 }
 
-// SAFETY: DeviceTree is immutable after initialization. 
+// SAFETY: DeviceTree is immutable after initialization.
 // The phandle_map contains pointers to Nodes that are owned by the 'root' Box,
 // meaning their heap addresses are stable for the lifetime of the DeviceTree.
 unsafe impl Send for DeviceTree {}
@@ -171,6 +171,30 @@ impl DeviceTree {
         // SAFETY: nodes are boxed and the devicetree is protected by an Arc,
         // so the pointer is valid as long as the devicetree exists (which is forever)
         unsafe { ptr.as_ref() }
+    }
+
+    pub fn aliases(&self) -> Option<&Node> {
+        self.root()
+            .children()
+            .iter()
+            .find(|node| node.name() == "aliases")
+            .map(|node| node.as_ref())
+    }
+
+    pub fn chosen(&self) -> Option<&Node> {
+        self.root()
+            .children()
+            .iter()
+            .find(|node| node.name() == "chosen")
+            .map(|node| node.as_ref())
+    }
+
+    pub fn cpus(&self) -> Option<&Node> {
+        self.root()
+            .children()
+            .iter()
+            .find(|node| node.name() == "cpus")
+            .map(|node| node.as_ref())
     }
 }
 

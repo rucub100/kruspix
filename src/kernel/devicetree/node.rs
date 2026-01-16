@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
+
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::iter;
+use core::ptr::NonNull;
 
 use super::PHandle;
 use super::interrupts::{
@@ -19,13 +25,9 @@ use super::std_prop::{
     StandardProperty, StatusValue,
 };
 use crate::kernel::devicetree::misc_prop::{
-    CLOCK_FREQUENCY, ClockFrequency, MiscellaneousProperties, MiscellaneousProperty,
+    BOOT_ARGS, CLOCK_FREQUENCY, ClockFrequency, MiscellaneousProperties, MiscellaneousProperty,
+    STDIN_PATH, STDOUT_PATH,
 };
-use alloc::boxed::Box;
-use alloc::string::String;
-use alloc::vec::Vec;
-use core::iter;
-use core::ptr::NonNull;
 
 // Base Device Node Types
 pub const ROOT: &'static str = "";
@@ -406,6 +408,42 @@ impl MiscellaneousProperties for Node {
                 PropertyValue::Miscellaneous(MiscellaneousProperty::ClockFrequency(
                     clock_frequency,
                 )) => Some(clock_frequency),
+                _ => unreachable!(),
+            })
+    }
+
+    fn boot_args(&self) -> Option<&str> {
+        self.properties
+            .iter()
+            .find(|p| p.name() == BOOT_ARGS)
+            .and_then(|p| match p.value() {
+                PropertyValue::Miscellaneous(MiscellaneousProperty::BootArgs(boot_args)) => {
+                    Some(boot_args.as_str())
+                }
+                _ => unreachable!(),
+            })
+    }
+
+    fn stdout_path(&self) -> Option<&str> {
+        self.properties
+            .iter()
+            .find(|p| p.name() == STDOUT_PATH)
+            .and_then(|p| match p.value() {
+                PropertyValue::Miscellaneous(MiscellaneousProperty::StdoutPath(stdout_path)) => {
+                    Some(stdout_path.as_str())
+                }
+                _ => unreachable!(),
+            })
+    }
+
+    fn stdin_path(&self) -> Option<&str> {
+        self.properties
+            .iter()
+            .find(|p| p.name() == STDIN_PATH)
+            .and_then(|p| match p.value() {
+                PropertyValue::Miscellaneous(MiscellaneousProperty::StdinPath(stdin_path)) => {
+                    Some(stdin_path.as_str())
+                }
                 _ => unreachable!(),
             })
     }
