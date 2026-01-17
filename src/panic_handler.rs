@@ -10,12 +10,21 @@ pub fn panic(_info: &PanicInfo) -> ! {
     kprint!("\n\n\n\n\n\n");
     kprintln!("PANIC OCCURRED:");
     if let Some(location) = _info.location() {
-        kprintln!("  File: {}:{}:{}", location.file(), location.line(), location.column());
+        kprintln!(
+            "  File: {}:{}:{}",
+            location.file(),
+            location.line(),
+            location.column()
+        );
     } else {
         kprintln!("  No location information available.");
     }
 
     kprintln!("  Message: {}", _info.message());
-    
-    loop {}
+
+    loop {
+        unsafe {
+            core::arch::asm!("wfe");
+        }
+    }
 }
