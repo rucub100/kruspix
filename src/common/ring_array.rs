@@ -43,6 +43,12 @@ impl<T: Copy + Default, const N: usize> RingArray<T, N> {
     }
 
     pub fn drain(&mut self, dst: &mut [T]) -> usize {
+        assert!(dst.len() >= self.len());
+
+        if dst.is_empty() || self.is_empty() {
+            return 0;
+        }
+
         let len = self.len().min(dst.len());
         let start = if self.full { self.index } else { 0 };
 
@@ -53,7 +59,9 @@ impl<T: Copy + Default, const N: usize> RingArray<T, N> {
             dst[part..len].copy_from_slice(&self.buffer[..len - part]);
         }
 
+        // SAFETY: we assert that dst.len() >= self.len() above
         self.clear();
+
         len
     }
 
@@ -83,7 +91,7 @@ impl<'a, T, const N: usize> Iterator for RingArrayIter<'a, T, N> {
         if self.count == 0 {
             return None;
         }
-        
+
         let item = &self.buffer[self.pos];
         self.pos = (self.pos + 1) % N;
         self.count -= 1;

@@ -17,6 +17,7 @@ pub mod sync;
 pub mod terminal;
 pub mod time;
 pub mod watchdog;
+pub mod shell;
 
 pub fn init_modules() {
     match terminal::init() {

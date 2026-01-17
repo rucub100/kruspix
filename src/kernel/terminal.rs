@@ -1,28 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
-//! TODO: TTY module shall be implemented here
-//!
-//! Strategy:
-//!
-//! We need to classify input-only devices (keyboards, mice, touchscreens) and
-//! output-only devices (framebuffers, etc.) in order to compose TTYs from them.
-//!
-//! However, if a device is both input and output (like serial consoles), we shall
-//! keep them together in a terminal instance.
-//!
-//! For the primary console, we shall pick the first available terminal device found
-//! or derive it from the stdout-path property in the devicetree (/chosen node).
-//!
-//! If the primary console happens to be both input and output, we can use it as the "primary terminal".
-//! Otherwise, we shall try to compose the terminal from the primary output device and an
-//! appropriate input-only device (keyboard, etc.). The input device selection strategy may follow the same
-//! principles in this case: check the stdin-path first or fallback to the first input-only device found.
-//!
-//! Secondary terminals may be created from devices that are not used yes and are both input and output capable
-//! or by composing input-only and output-only devices together according to some logic
-//! (like matching local keyboards with framebuffers).
-
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
@@ -48,15 +26,93 @@ pub trait OutputDevice: Device {
     fn write(&self, bytes: &[u8]);
 }
 
-pub struct SystemTerminal {
-    output: Arc<dyn OutputDevice>,
-    input: Arc<dyn InputDevice>,
+pub trait LineListener: Send + Sync {
+    fn on_line(&self, line: &[u8]);
 }
 
 static INPUT_DEVICES: SpinLock<Vec<Arc<dyn InputDevice>>> = SpinLock::new(Vec::new());
 static OUTPUT_DEVICES: SpinLock<Vec<Arc<dyn OutputDevice>>> = SpinLock::new(Vec::new());
 
 static SYSTEM_TERMINAL: OnceLock<SystemTerminal> = OnceLock::new();
+
+struct TerminalState {
+    line_buffer: Vec<u8>,
+    echo: bool,
+}
+
+pub struct SystemTerminal {
+    output: Arc<dyn OutputDevice>,
+    input: Arc<dyn InputDevice>,
+    state: SpinLock<TerminalState>,
+    listeners: SpinLock<Vec<Arc<dyn LineListener>>>,
+}
+
+impl SystemTerminal {
+    /// The core method of [`SystemTerminal`], [`SystemTerminal::poll`], attempts to read input data and process it.
+    /// This method does not block if the value is not ready. It should be called periodically to drive
+    /// the input processing.
+    ///
+    /// SAFETY: Do NOT call this in ISR context.
+    pub fn poll(&self) {
+        let raw_bytes = self.input.read();
+        for byte in raw_bytes {
+            if let Some(line) = self.line_discipline(byte) {
+                let listeners = self.listeners.lock();
+                for listener in listeners.iter() {
+                    listener.on_line(&line);
+                }
+            }
+        }
+    }
+
+    pub fn add_listener(&self, listener: Arc<dyn LineListener>) {
+        self.listeners.lock().push(listener);
+    }
+
+    pub fn write(&self, bytes: &[u8]) {
+        self.output.write(bytes);
+    }
+
+    fn line_discipline(&self, byte: u8) -> Option<Vec<u8>> {
+        let mut state = self.state.lock();
+
+        match byte {
+            // handle newline
+            b'\n' | b'\r' => {
+                if state.echo {
+                    self.output.write(&[b'\r', b'\n']);
+                }
+                let line = state.line_buffer.clone();
+                state.line_buffer.clear();
+                Some(line)
+            }
+            // handle backspace/delete
+            0x08 | 0x7f => {
+                if !state.line_buffer.is_empty() {
+                    state.line_buffer.pop();
+                    if state.echo {
+                        self.output.write(b"\x08 \x08");
+                    }
+                }
+                None
+            }
+            // handle printable characters
+            0x20..0x7f => {
+                state.line_buffer.push(byte);
+                if state.echo {
+                    self.output.write(&[byte]);
+                }
+                None
+            }
+            // ignore other bytes
+            _ => None,
+        }
+    }
+}
+
+pub fn get_system_terminal() -> Option<&'static SystemTerminal> {
+    SYSTEM_TERMINAL.get()
+}
 
 pub fn register_input(dev: Arc<dyn InputDevice>) {
     INPUT_DEVICES.lock().push(dev);
@@ -166,6 +222,11 @@ pub(super) fn init() -> TerminalResult<()> {
     let terminal = SystemTerminal {
         output: system_output.unwrap(),
         input: system_input.unwrap(),
+        state: SpinLock::new(TerminalState {
+            line_buffer: Vec::new(),
+            echo: true,
+        }),
+        listeners: SpinLock::new(Vec::new()),
     };
 
     SYSTEM_TERMINAL

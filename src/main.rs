@@ -5,17 +5,14 @@
 #![no_main]
 extern crate alloc;
 
-use alloc::sync::Arc;
-
 use kruspix::arch::cpu::local_enable_irq_fiq;
 use kruspix::arch::{kernel::setup::setup_arch, mm::mmu::setup_page_tables};
 use kruspix::drivers::init_platform_drivers;
 use kruspix::kernel::cpu::{get_local_data, init_local_data};
 use kruspix::kernel::devicetree::init_devicetree;
 use kruspix::kernel::init_modules;
-use kruspix::kernel::irq::register_handler;
-use kruspix::kernel::rng::get_rng;
-use kruspix::kernel::time::uptime;
+use kruspix::kernel::shell::KernelShell;
+use kruspix::kernel::terminal::get_system_terminal;
 use kruspix::mm::init_heap;
 use kruspix::{kprint, kprintln};
 
@@ -33,49 +30,18 @@ pub extern "C" fn start_kernel() -> ! {
     local_enable_irq_fiq();
     init_modules();
 
-    let local = get_local_data();
-    let alarm_handler = Arc::new(|_| {
-        let alarm = local.get_alarm().unwrap();
-        let now = uptime();
+    KernelShell::new().start();
 
-        kprintln!(
-            "[{}] Local alarm triggered on core {}",
-            now.as_millis(),
-            local.core_id()
-        );
-        if let Some(rng) = get_rng()
-            && let Some(random) = rng.next_usize().ok()
-        {
-            kprintln!("-> Random number: {:x}", random);
+    // === Main Cooperative Polling Loop ===
+    // This loop serves as the central Kernel Executive until a scheduler and a userspace init
+    // process are implemented. It implements a Cooperative Polling architecture,
+    // where each system module is given a "time slice" to progress its
+    // internal state without blocking the CPU.
+    loop {
+        if let Some(terminal) = get_system_terminal() {
+            terminal.poll();
         }
 
-        alarm.cancel();
-        let mut ticks = alarm.duration_to_ticks(now);
-        ticks += alarm.duration_to_ticks(core::time::Duration::from_secs(1));
-        alarm.schedule_at(ticks);
-    });
-
-    if let Some(alarm) = local.get_alarm() {
-        register_handler(alarm.virq(), alarm_handler).unwrap();
-        let uptime = uptime();
-        let mut ticks = alarm.duration_to_ticks(uptime);
-        ticks += alarm.duration_to_ticks(core::time::Duration::from_secs(1));
-        alarm.schedule_at(ticks);
-    }
-
-    // TODO: memory management setup
-    // TODO: interrupts/exceptions setup
-    // TODO: Scheduler setup
-    // TODO: SMP system setup (CPU setup)
-    // TODO: Initialize other kernel modules
-    // TODO: Initialize device drivers
-    // TODO: setup root user space process a.k.a. init
-    // TODO: Enable interrupts and start normal operation
-
-    // TODO: simple kernel shell or REPL for testing purposes
-
-    kprintln!("Kernel initialization complete. Entering idle loop.");
-    loop {
         unsafe {
             core::arch::asm!("wfe");
         }
