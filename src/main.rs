@@ -8,7 +8,7 @@ extern crate alloc;
 use kruspix::arch::cpu::local_enable_irq_fiq;
 use kruspix::arch::{kernel::setup::setup_arch, mm::mmu::setup_page_tables};
 use kruspix::drivers::init_platform_drivers;
-use kruspix::kernel::cpu::{get_local_data, init_local_data};
+use kruspix::kernel::cpu::init_local_data;
 use kruspix::kernel::devicetree::init_devicetree;
 use kruspix::kernel::init_modules;
 use kruspix::kernel::shell::KernelShell;

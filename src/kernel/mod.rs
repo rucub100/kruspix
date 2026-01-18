@@ -13,16 +13,28 @@ pub mod power;
 pub mod print;
 pub mod rng;
 pub mod sched;
+pub mod shell;
 pub mod sync;
 pub mod terminal;
 pub mod time;
 pub mod watchdog;
-pub mod shell;
 
 pub fn init_modules() {
     match terminal::init() {
         Ok(_) => kprintln!("[INFO] Terminal module initialized successfully"),
         Err(e) => kprintln!("[WARNING] Failed to initialize terminal module: {:?}", e),
+    }
+    match time::init() {
+        Ok(_) => kprintln!("[INFO] Time module initialized successfully"),
+        Err(e) => kprintln!("[WARNING] Failed to initialize time module: {:?}", e),
+    }
+    match rng::init() {
+        Ok(_) => kprintln!("[INFO] RNG module initialized successfully"),
+        Err(e) => kprintln!("[WARNING] Failed to initialize RNG module: {:?}", e),
+    }
+    match watchdog::init() {
+        Ok(_) => kprintln!("[INFO] Watchdog module initialized successfully"),
+        Err(e) => kprintln!("[WARNING] Failed to initialize Watchdog module: {:?}", e),
     }
 }
 

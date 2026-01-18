@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
+use alloc::format;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::time::Duration;
 
 use crate::drivers::Device;
 use crate::kernel::cpu::get_local_data;
+use crate::kernel::shell;
+use crate::kernel::shell::ShellCommand;
 use crate::kernel::sync::SpinLock;
+use crate::kernel::terminal::get_system_terminal;
 
 const NANOS_PER_SEC: u128 = 1_000_000_000;
 
@@ -140,4 +144,18 @@ pub fn busy_wait(duration: Duration) {
     while timer.counter().wrapping_sub(start_ticks) < wait_ticks {
         core::hint::spin_loop();
     }
+}
+
+pub(super) fn init() -> Result<(), ()> {
+    shell::register_command(ShellCommand::new("uptime", "Show system uptime", |_, _| {
+        let uptime = uptime();
+        let secs = uptime.as_secs();
+        let millis = uptime.subsec_millis();
+        let uptime_str = format!("System Uptime: {}.{:03} seconds", secs, millis);
+        if let Some(terminal) = get_system_terminal() {
+            terminal.write(uptime_str.as_bytes());
+        }
+    }));
+
+    Ok(())
 }

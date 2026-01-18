@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
+use alloc::format;
 use alloc::sync::Arc;
 
 use crate::drivers::Device;
+use crate::kernel::shell;
+use crate::kernel::shell::ShellCommand;
 use crate::kernel::sync::OnceLock;
+use crate::kernel::terminal::get_system_terminal;
 
+#[derive(Debug)]
 pub enum RngError {
     HardwareError,
     Timeout,
@@ -62,4 +67,27 @@ pub fn register_rng(rng: Arc<dyn RandomNumberGenerator>) -> RngResult<()> {
 
 pub fn get_rng() -> Option<Arc<dyn RandomNumberGenerator>> {
     RNG.get().cloned()
+}
+
+pub(super) fn init() -> Result<(), ()> {
+    if get_rng().is_some() {
+        shell::register_command(ShellCommand::new("rng", "Print a random number", |_, _| {
+            match get_rng().unwrap().next_usize() {
+                Ok(num) => {
+                    if let Some(terminal) = get_system_terminal() {
+                        let output = format!("Random number: {}\n", num);
+                        terminal.write(output.as_bytes());
+                    }
+                }
+                Err(err) => {
+                    if let Some(terminal) = get_system_terminal() {
+                        let output = format!("Failed to get random number: {:?}\n", err);
+                        terminal.write(output.as_bytes());
+                    }
+                }
+            }
+        }));
+    }
+
+    Ok(())
 }
