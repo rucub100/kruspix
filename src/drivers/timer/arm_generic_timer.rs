@@ -44,7 +44,7 @@ impl Device for GenericTimerDevice {
             }
         }
 
-        register_global_timer(self.clone());
+        register_global_timer(self);
 
         Ok(())
     }
@@ -62,7 +62,7 @@ impl Device for GenericTimerDevice {
         }
 
         enable_irq(self.virq).map_err(|_| DriverInitError::ToDo)?;
-        register_local_alarm(self.clone());
+        register_local_alarm(self);
 
         Ok(())
     }
@@ -135,10 +135,11 @@ impl PlatformDriver for GenericTimerDriver {
         let dev = GenericTimerDevice::new(node.path(), frequency.as_u64(), virq);
 
         let dev = Arc::new(dev);
-        self.dev_registry.add_device(node.path(), dev.clone());
 
         dev.clone().global_setup(node)?;
-        dev.local_setup()?;
+        dev.clone().local_setup()?;
+
+        self.dev_registry.add_device(node.path(), dev);
 
         kprintln!("{:?} initialized successfully", self.compatible());
         Ok(())

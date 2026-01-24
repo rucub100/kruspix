@@ -56,7 +56,7 @@ mod power {
 
 const PM_PASSWORD: u32 = 0x5a000000;
 
-pub struct WatchdogTimerDevice {
+struct WatchdogTimerDevice {
     id: String,
     reg_base: usize,
     timeout: AtomicU32,
@@ -292,9 +292,9 @@ impl PlatformDriver for WatchdogTimerAndPowerDriver {
         let dev = WatchdogTimerDevice::new(node.path(), addr);
         let dev = Arc::new(dev);
 
-        self.dev_registry.add_device(node.path(), dev.clone());
-
         dev.clone().global_setup(node)?;
+
+        self.dev_registry.add_device(node.path(), dev);
 
         Ok(())
     }

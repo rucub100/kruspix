@@ -3,8 +3,10 @@
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::sync::atomic::AtomicUsize;
 
 use crate::drivers::Device;
+use crate::kernel::devicetree::node::Node;
 use crate::kernel::sync::SpinLock;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -19,16 +21,40 @@ pub type ClockResult<T> = Result<T, ClockError>;
 
 pub trait Clock: Device {
     fn name(&self) -> &str;
-    fn prepare(&self) -> ClockResult<()>;
+    fn startup(&self) -> ClockResult<()>;
+    fn shutdown(&self) -> ClockResult<()>;
     fn enable(&self) -> ClockResult<()>;
-    fn disable(&self);
-    fn unprepare(&self);
+    fn disable(&self) -> ClockResult<()>;
     fn get_rate(&self) -> u64;
     fn set_rate(&self, hz: u64) -> ClockResult<()>;
 }
 
-static CLOCKS: SpinLock<Vec<Arc<dyn Clock>>> = SpinLock::new(Vec::new());
+struct ClockDomain {
+    dev: Arc<dyn Clock>,
+    parent: Option<Arc<ClockDomain>>,
+    prepare_count: AtomicUsize,
+    enable_count: AtomicUsize,
+}
 
-pub fn register_clock(clock: Arc<dyn Clock>) {
-    CLOCKS.lock().push(clock);
+impl ClockDomain {
+    const fn new(dev: Arc<dyn Clock>, parent: Option<Arc<ClockDomain>>) -> Self {
+        Self {
+            dev,
+            parent,
+            prepare_count: AtomicUsize::new(0),
+            enable_count: AtomicUsize::new(0),
+        }
+    }
+}
+
+static CLOCKS: SpinLock<Vec<Arc<ClockDomain>>> = SpinLock::new(Vec::new());
+
+pub fn register_clock(node: &Node, clock: Arc<dyn Clock>) -> ClockResult<()> {
+    // TODO: how about parent clocks?
+
+    CLOCKS
+        .lock_irq()
+        .push(Arc::new(ClockDomain::new(clock, None)));
+
+    Ok(())
 }

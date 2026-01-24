@@ -116,6 +116,8 @@ pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     // interrupt controller
     &interrupt_controller::bcm2836_l1_intc::DRIVER,
     &interrupt_controller::bcm2836_armctrl_ic::DRIVER,
+    // clock
+    &clock_controller::fixed_clock::DRIVER,
     // timer
     &timer::arm_generic_timer::DRIVER,
     &timer::bcm2835_system_timer::DRIVER,
