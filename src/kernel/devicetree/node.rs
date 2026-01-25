@@ -25,8 +25,8 @@ use super::std_prop::{
     StandardProperty, StatusValue,
 };
 use crate::kernel::devicetree::misc_prop::{
-    BOOT_ARGS, CLOCK_FREQUENCY, ClockFrequency, MiscellaneousProperties, MiscellaneousProperty,
-    STDIN_PATH, STDOUT_PATH,
+    BOOT_ARGS, CLOCK_CELLS, CLOCK_FREQUENCY, ClockFrequency, MiscellaneousProperties,
+    MiscellaneousProperty, STDIN_PATH, STDOUT_PATH,
 };
 
 // Base Device Node Types
@@ -400,6 +400,18 @@ impl InterruptControllerOrNexusNode for Node {
 }
 
 impl MiscellaneousProperties for Node {
+    fn clock_cells(&self) -> Option<u32> {
+        self.properties
+            .iter()
+            .find(|p| p.name() == CLOCK_CELLS)
+            .and_then(|p| match p.value() {
+                PropertyValue::Miscellaneous(MiscellaneousProperty::ClockCells(cells)) => {
+                    Some(*cells)
+                }
+                _ => unreachable!(),
+            })
+    }
+
     fn clock_frequency(&self) -> Option<&ClockFrequency> {
         self.properties
             .iter()

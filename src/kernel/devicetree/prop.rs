@@ -12,7 +12,7 @@ use super::interrupts::{
     INTERRUPT_PARENT, INTERRUPTS, INTERRUPTS_EXTENDED, InterruptMap, InterruptMapMask, Interrupts,
     InterruptsProperty,
 };
-use super::misc_prop::{BOOT_ARGS, CLOCK_FREQUENCY, STDIN_PATH, STDOUT_PATH};
+use super::misc_prop::{BOOT_ARGS, CLOCK_CELLS, CLOCK_FREQUENCY, STDIN_PATH, STDOUT_PATH};
 use super::node::Node;
 use super::std_prop::{
     ADDRESS_CELLS, AddressCellsValue, COMPATIBLE, DMA_COHERENT, DMA_NONCOHERENT, DMA_RANGES,
@@ -181,6 +181,9 @@ impl Property {
                 )))
             }
             // Miscellaneous Properties
+            CLOCK_CELLS => PropertyValue::Miscellaneous(MiscellaneousProperty::ClockCells(
+                prop.value_as_u32().unwrap(),
+            )),
             CLOCK_FREQUENCY => PropertyValue::Miscellaneous(MiscellaneousProperty::ClockFrequency(
                 match prop.value().len() {
                     4 => ClockFrequency::U32(prop.value_as_u32().unwrap()),

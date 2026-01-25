@@ -3,6 +3,7 @@
 
 use alloc::string::String;
 
+pub const CLOCK_CELLS: &'static str = "#clock-cells";
 pub const CLOCK_FREQUENCY: &'static str = "clock-frequency";
 pub const BOOT_ARGS: &'static str = "bootargs";
 pub const STDOUT_PATH: &'static str = "stdout-path";
@@ -14,6 +15,7 @@ pub enum MiscPropError {}
 pub type MiscPropResult<T> = Result<T, MiscPropError>;
 
 pub trait MiscellaneousProperties {
+    fn clock_cells(&self) -> Option<u32>;
     fn clock_frequency(&self) -> Option<&ClockFrequency>;
     fn boot_args(&self) -> Option<&str>;
     fn stdout_path(&self) -> Option<&str>;
@@ -37,6 +39,7 @@ impl ClockFrequency {
 
 #[derive(Debug)]
 pub enum MiscellaneousProperty {
+    ClockCells(u32),
     ClockFrequency(ClockFrequency),
     BootArgs(String),
     StdoutPath(String),
@@ -46,6 +49,7 @@ pub enum MiscellaneousProperty {
 impl MiscellaneousProperty {
     pub fn as_str(&self) -> &str {
         match self {
+            MiscellaneousProperty::ClockCells(_) => CLOCK_CELLS,
             MiscellaneousProperty::ClockFrequency(_) => CLOCK_FREQUENCY,
             MiscellaneousProperty::BootArgs(_) => BOOT_ARGS,
             MiscellaneousProperty::StdoutPath(_) => STDOUT_PATH,

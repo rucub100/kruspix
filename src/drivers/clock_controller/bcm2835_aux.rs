@@ -1,29 +1,37 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use alloc::string::String;
 use alloc::sync::Arc;
 
 use crate::drivers::{Device, DriverInitError, DriverRegistry, PlatformDriver};
-use crate::kernel::clk::{Clock, ClockError, ClockResult, register_clock};
-use crate::kernel::devicetree::misc_prop::{MiscellaneousProperties, MiscellaneousProperty};
+use crate::kernel::clk::{Clock, ClockResult, register_clock};
+use crate::kernel::devicetree::misc_prop::MiscellaneousProperties;
 use crate::kernel::devicetree::node::Node;
-use crate::kernel::devicetree::prop::PropertyValue;
+use crate::kernel::devicetree::std_prop::StandardProperties;
+use crate::mm::map_io_region;
 
-struct FixedClockDevice {
+const AUX_IRQ_OFFSET: usize = 0x0;
+const AUX_ENABLES_OFFSET: usize = 0x4;
+
+const CLOCK_SPECIFIER_UART: u32 = 0;
+const CLOCK_SPECIFIER_SPI1: u32 = 1;
+const CLOCK_SPECIFIER_SPI2: u32 = 2;
+
+struct ClockDevice {
     id: String,
-    frequency_hz: u64,
+    reg_base: usize,
 }
 
-impl FixedClockDevice {
-    fn new(id: String, frequency_hz: u64) -> Self {
-        Self { id, frequency_hz }
+impl ClockDevice {
+    const fn new(id: String, reg_base: usize) -> Self {
+        Self { id, reg_base }
     }
 }
 
-impl Device for FixedClockDevice {
+impl Device for ClockDevice {
     fn id(&self) -> &str {
-        self.id.as_str()
+        todo!()
     }
 
     fn global_setup(self: Arc<Self>, node: &Node) -> Result<(), DriverInitError> {
@@ -36,9 +44,9 @@ impl Device for FixedClockDevice {
     }
 }
 
-impl Clock for FixedClockDevice {
+impl Clock for ClockDevice {
     fn name(&self) -> &str {
-        self.id()
+        self.id.as_str()
     }
 
     fn startup(&self) -> ClockResult<()> {
@@ -50,54 +58,48 @@ impl Clock for FixedClockDevice {
     }
 
     fn enable(&self) -> ClockResult<()> {
-        Ok(())
+        todo!()
     }
 
     fn disable(&self) -> ClockResult<()> {
-        Ok(())
+        todo!()
     }
 
     fn get_rate(&self) -> u64 {
-        self.frequency_hz
+        todo!()
     }
 
     fn set_rate(&self, hz: u64) -> ClockResult<()> {
-        match hz {
-            _ if hz == self.frequency_hz => Ok(()),
-            _ => Err(ClockError::RateNotSupported),
-        }
+        todo!()
     }
 }
 
-pub struct FixedClockDriver {
-    dev_registry: DriverRegistry<FixedClockDevice>,
+pub struct ClockDriver {
+    dev_registry: DriverRegistry<ClockDevice>,
 }
 
-impl PlatformDriver for FixedClockDriver {
+impl PlatformDriver for ClockDriver {
     fn compatible(&self) -> &[&str] {
-        &["fixed-clock"]
+        &["brcm,bcm2835-aux"]
     }
 
     fn try_init(&self, node: &Node) -> Result<(), DriverInitError> {
         let clock_cells = node.clock_cells().ok_or(DriverInitError::DeviceTreeError)?;
-        if clock_cells != 0 {
+        if clock_cells != 1 {
             return Err(DriverInitError::DeviceTreeError);
         }
 
-        let clock_frequency_prop = node
-            .properties()
-            .iter()
-            .find(|prop| prop.name() == "clock-frequency")
+        let reg = node.reg().ok_or(DriverInitError::DeviceTreeError)?;
+        if reg.len() != 1 {
+            return Err(DriverInitError::DeviceTreeError);
+        }
+
+        let (phys_addr, length) = node
+            .resolve_phys_address_and_length(0)
             .ok_or(DriverInitError::DeviceTreeError)?;
+        let addr = map_io_region(phys_addr, length);
 
-        let frequency_hz = match clock_frequency_prop.value() {
-            PropertyValue::Miscellaneous(MiscellaneousProperty::ClockFrequency(freq)) => {
-                freq.as_u64()
-            }
-            _ => return Err(DriverInitError::DeviceFailed),
-        };
-
-        let dev = FixedClockDevice::new(node.path(), frequency_hz);
+        let dev = ClockDevice::new(node.path(), addr);
         let dev = Arc::new(dev);
 
         dev.clone().global_setup(node)?;
@@ -112,12 +114,12 @@ impl PlatformDriver for FixedClockDriver {
     }
 }
 
-impl FixedClockDriver {
+impl ClockDriver {
     const fn new() -> Self {
-        FixedClockDriver {
+        Self {
             dev_registry: DriverRegistry::new(),
         }
     }
 }
 
-pub static DRIVER: FixedClockDriver = FixedClockDriver::new();
+pub static DRIVER: ClockDriver = ClockDriver::new();

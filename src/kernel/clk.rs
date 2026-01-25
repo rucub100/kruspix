@@ -50,7 +50,7 @@ impl ClockDomain {
 static CLOCKS: SpinLock<Vec<Arc<ClockDomain>>> = SpinLock::new(Vec::new());
 
 pub fn register_clock(node: &Node, clock: Arc<dyn Clock>) -> ClockResult<()> {
-    // TODO: how about parent clocks?
+    // TODO: parents in node -> clocks property (phandles)
 
     CLOCKS
         .lock_irq()
