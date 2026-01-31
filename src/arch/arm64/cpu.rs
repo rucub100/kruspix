@@ -87,3 +87,9 @@ pub(crate) unsafe fn set_local<T>(data: &T) {
         asm!("msr tpidr_el1, {0}", in(reg) ptr, options(nomem, nostack, preserves_flags));
     }
 }
+
+#[repr(C)]
+pub(crate) struct ArchContext {
+    stack_pointer: usize,
+    x19_x30: [usize; 12],
+}

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use alloc::string::String;
 use alloc::sync::Arc;
