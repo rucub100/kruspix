@@ -97,6 +97,14 @@ impl Alarm for GenericTimerDevice {
         }
     }
 
+    fn schedule_after(&self, ticks: u64) {
+        unsafe {
+            core::arch::asm!("msr cntv_tval_el0, {0}", in(reg) ticks);
+            core::arch::asm!("msr cntv_ctl_el0, {0}", in(reg) 0b1u64);
+            core::arch::asm!("isb");
+        }
+    }
+
     fn virq(&self) -> u32 {
         self.virq
     }

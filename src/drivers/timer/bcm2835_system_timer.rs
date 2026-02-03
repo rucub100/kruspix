@@ -113,6 +113,12 @@ impl Alarm for TimerDevice {
         self.set_compare(ticks as u32);
     }
 
+    fn schedule_after(&self, ticks: u64) {
+        let now = self.counter();
+        let deadline = now.wrapping_add(ticks);
+        self.schedule_at(deadline);
+    }
+
     fn virq(&self) -> u32 {
         self.virq
     }

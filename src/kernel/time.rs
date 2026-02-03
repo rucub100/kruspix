@@ -64,6 +64,7 @@ pub trait Timer: Device {
 
 pub trait Alarm: Device {
     fn schedule_at(&self, ticks: u64);
+    fn schedule_after(&self, ticks: u64);
     fn virq(&self) -> u32;
     fn cancel(&self);
     fn frequency_hz(&self) -> u64;

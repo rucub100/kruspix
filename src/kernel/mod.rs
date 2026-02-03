@@ -19,6 +19,10 @@ pub mod terminal;
 pub mod time;
 pub mod watchdog;
 
+/// Initialize all kernel modules
+/// 
+/// # Safety
+/// The order of initialization matters and must be done after the MMU and heap are set up.
 pub fn init_modules() {
     match terminal::init() {
         Ok(_) => kprintln!("[INFO] Terminal module initialized successfully"),
@@ -35,6 +39,10 @@ pub fn init_modules() {
     match watchdog::init() {
         Ok(_) => kprintln!("[INFO] Watchdog module initialized successfully"),
         Err(e) => kprintln!("[WARNING] Failed to initialize Watchdog module: {:?}", e),
+    }
+    match sched::init() {
+        Ok(_) => kprintln!("[INFO] Scheduler module initialized successfully"),
+        Err(e) => kprintln!("[WARNING] Failed to initialize Scheduler module: {:?}", e),
     }
 }
 

@@ -11,6 +11,7 @@ use kruspix::drivers::init_platform_drivers;
 use kruspix::kernel::cpu::init_local_data;
 use kruspix::kernel::devicetree::init_devicetree;
 use kruspix::kernel::init_modules;
+use kruspix::kernel::sched::start_sched;
 use kruspix::kernel::shell::KernelShell;
 use kruspix::kernel::terminal::get_system_terminal;
 use kruspix::mm::init_heap;
@@ -29,6 +30,9 @@ pub extern "C" fn start_kernel() -> ! {
     init_platform_drivers();
     local_enable_irq_fiq();
     init_modules();
+
+    // TODO: switch to the scheduler (add some tasks)
+    // start_sched();
 
     KernelShell::new().start();
 
