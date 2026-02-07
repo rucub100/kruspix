@@ -6,6 +6,7 @@ use alloc::vec::Vec;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::drivers::Device;
+use crate::kernel::cpu::get_local_data;
 use crate::kernel::devicetree::get_devicetree;
 use crate::kernel::devicetree::interrupts::{
     InterruptControllerNode, InterruptControllerOrNexusNode, InterruptGeneratingNode,
@@ -13,6 +14,7 @@ use crate::kernel::devicetree::interrupts::{
 };
 use crate::kernel::devicetree::node::Node;
 use crate::kernel::devicetree::std_prop::StandardProperties;
+use crate::kernel::sched::yield_task;
 use crate::kernel::sync::{OnceLock, SpinLock};
 
 #[derive(Debug, Clone, Copy)]
@@ -75,6 +77,10 @@ pub extern "C" fn global_irq_dispatch() {
             dispatch_irq(root.virq_base + hwirq);
             root.controller.ack(hwirq);
         }
+    }
+
+    if get_local_data().clear_schedule_flag() {
+        yield_task();
     }
 }
 

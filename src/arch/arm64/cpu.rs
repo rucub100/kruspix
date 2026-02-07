@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use core::arch::{asm, naked_asm};
 
@@ -96,7 +96,7 @@ pub(crate) struct ArchContext {
 }
 
 impl ArchContext {
-    pub fn new<const N: usize>(stack: &[u8; N], entry: fn(), cleanup: fn()) -> Self {
+    pub fn new(stack: &[u8], entry: fn(), cleanup: fn()) -> Self {
         let mut x19_x30 = [0usize; 12];
 
         x19_x30[0] = entry as usize;
@@ -181,12 +181,6 @@ pub(crate) extern "C" fn switch_context(_old: &ArchContext, _new: &ArchContext) 
         // return to the restored context (x30 is the return address)
         "ret",
     )
-}
-
-pub(crate) fn idle_task() {
-    loop {
-        wait_for_interrupt();
-    }
 }
 
 #[inline(always)]

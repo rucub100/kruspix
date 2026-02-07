@@ -1,28 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
-//! Kernel task scheduler
-//!
-//! Brainstorming ideas and concepts:
-//! - Round-robin scheduling / first-come-first-serve
-//! - we need a one or multiple queues to hold the tasks
-//! - what are the possible states of tasks?
-//! - context switching (arch specific and arch agnostic parts)
-//! - time slicing and preemption (alarm timer interrupts)
-//! - the dispatcher selects the next task to run and performs the context switch
-//! - in contrast the scheduler manages the ready queue but does not perform context switches
-//! - what about the IO scheduler?
-
 use alloc::boxed::Box;
 use alloc::collections::VecDeque;
 use alloc::string::{String, ToString};
 use alloc::sync::Arc;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use core::time::Duration;
 
 use crate::arch::cpu::{
-    ArchContext, idle_task, local_disable_irq_fiq, load_context, switch_context,
+    ArchContext, load_context, local_disable_irq_fiq, switch_context, wait_for_interrupt,
 };
 use crate::kernel::cpu::get_local_data;
 use crate::kernel::irq::register_handler;
@@ -62,13 +51,13 @@ struct Task {
     state: TaskState,
     pcb: Option<Arc<ProcessControlBlock>>,
     context: ArchContext,
-    kernel_stack: Box<[u8; KERNEL_STACK_SIZE]>,
+    kernel_stack: Box<[u8]>,
 }
 
 impl Task {
     pub fn new(name: &str, entry: fn()) -> Arc<Self> {
         let tid = NEXT_TID.fetch_add(1, Ordering::SeqCst);
-        let kernel_stack = Box::new([0u8; KERNEL_STACK_SIZE]);
+        let kernel_stack = vec![0u8; KERNEL_STACK_SIZE].into_boxed_slice();
         let context = ArchContext::new(&kernel_stack, entry, terminate_task);
 
         Arc::new(Self {
@@ -152,15 +141,27 @@ impl Scheduler {
     }
 }
 
+#[inline(never)]
+fn idle_task() {
+    loop {
+        wait_for_interrupt();
+        yield_task();
+    }
+}
+
+#[inline]
 pub fn add_task(name: &str, entry: fn()) {
     if let Some(scheduler) = SCHEDULER.get() {
         let task = Task::new(name, entry);
-        scheduler.add_task(task);
+        without_irq_fiq(|| {
+            scheduler.add_task(task);
+        });
     } else {
         kprintln!("[ERROR] Scheduler not initialized");
     }
 }
 
+#[inline]
 pub fn yield_task() {
     if let Some(scheduler) = SCHEDULER.get() {
         without_irq_fiq(|| {
@@ -193,7 +194,7 @@ pub fn start_sched() -> ! {
             alarm.virq(),
             Arc::new(move |_| {
                 alarm_cloned.schedule_after(alarm_cloned.duration_to_ticks(TASK_QUANTUM));
-                scheduler.schedule();
+                get_local_data().set_schedule_flag();
             }),
         ) {
             Ok(_) => kprintln!("[INFO] Scheduler timer alarm registered successfully"),

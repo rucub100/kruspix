@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use alloc::boxed::Box;
 use alloc::sync::Arc;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use crate::arch::cpu::{core_id, get_local, set_local};
 use crate::kernel::sync::OnceLock;
@@ -11,6 +12,7 @@ use crate::kernel::time::Alarm;
 pub struct LocalData {
     core_id: usize,
     alarm: OnceLock<Arc<dyn Alarm>>,
+    schedule_flag: AtomicBool,
 }
 
 impl LocalData {
@@ -18,6 +20,7 @@ impl LocalData {
         LocalData {
             core_id,
             alarm: OnceLock::new(),
+            schedule_flag: AtomicBool::new(false),
         }
     }
 
@@ -31,6 +34,14 @@ impl LocalData {
 
     pub fn get_alarm(&self) -> Option<Arc<dyn Alarm>> {
         self.alarm.get().cloned()
+    }
+
+    pub fn set_schedule_flag(&self) {
+        self.schedule_flag.store(true, Ordering::Release);
+    }
+
+    pub fn clear_schedule_flag(&self) -> bool {
+        self.schedule_flag.swap(false, Ordering::Acquire)
     }
 }
 

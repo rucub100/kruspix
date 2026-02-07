@@ -56,7 +56,7 @@ pub fn register_early_console(console: &'static dyn Console) {
 }
 
 fn console_write_str(s: &str) {
-    let consoles = SYSTEM_CONSOLES.lock();
+    let consoles = SYSTEM_CONSOLES.lock_irq();
     if !consoles.is_empty() {
         for console in consoles.iter() {
             console.write_str(s);
@@ -65,11 +65,11 @@ fn console_write_str(s: &str) {
     }
     drop(consoles);
 
-    let early_console = EARLY_CONSOLE.lock();
+    let early_console = EARLY_CONSOLE.lock_irq();
     if let Some(console) = *early_console {
         console.write_str(s);
     } else {
-        let mut buf = BOOT_CONSOLE.lock();
+        let mut buf = BOOT_CONSOLE.lock_irq();
         for byte in s.bytes() {
             buf.push(byte);
         }

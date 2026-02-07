@@ -8,6 +8,7 @@ use core::time::Duration;
 
 use crate::drivers::Device;
 use crate::kernel::cpu::get_local_data;
+use crate::kernel::sched::yield_task;
 use crate::kernel::shell;
 use crate::kernel::shell::ShellCommand;
 use crate::kernel::sync::SpinLock;
@@ -144,6 +145,22 @@ pub fn busy_wait(duration: Duration) {
 
     while timer.counter().wrapping_sub(start_ticks) < wait_ticks {
         core::hint::spin_loop();
+    }
+}
+
+pub fn sleep(duration: Duration) {
+    assert!(duration > Duration::ZERO);
+
+    let timer = GLOBAL_SYSTEM_TIMER.lock_irq().as_ref().unwrap().clone();
+    let start_ticks = timer.counter();
+    let wait_ticks = timer.duration_to_ticks(duration);
+    assert!(wait_ticks < timer.max_ticks());
+
+    while timer.counter().wrapping_sub(start_ticks) < wait_ticks {
+        // FIXME: this implementation is a busy-loop (bad)
+        // instead we should put the task onto a dedicated blocked queue and schedule the next task until the timer expires
+        // however the question is now how to efficiently check for timer expiration without adding too much overhead to the scheduler
+        yield_task();
     }
 }
 
