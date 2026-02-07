@@ -5,13 +5,13 @@
 #![no_main]
 extern crate alloc;
 
-use kruspix::arch::cpu::local_enable_irq_fiq;
+use kruspix::arch::cpu::{local_enable_irq_fiq, wait_for_event, wait_for_interrupt};
 use kruspix::arch::{kernel::setup::setup_arch, mm::mmu::setup_page_tables};
 use kruspix::drivers::init_platform_drivers;
 use kruspix::kernel::cpu::init_local_data;
 use kruspix::kernel::devicetree::init_devicetree;
 use kruspix::kernel::init_modules;
-use kruspix::kernel::sched::start_sched;
+use kruspix::kernel::sched::{add_task, start_sched};
 use kruspix::kernel::shell::KernelShell;
 use kruspix::kernel::terminal::get_system_terminal;
 use kruspix::mm::init_heap;
@@ -31,23 +31,23 @@ pub extern "C" fn start_kernel() -> ! {
     local_enable_irq_fiq();
     init_modules();
 
-    // TODO: switch to the scheduler (add some tasks)
-    // start_sched();
+    add_task("kernel_shell", || {
+        KernelShell::new().start();
 
-    KernelShell::new().start();
+        loop {
+            if let Some(terminal) = get_system_terminal() {
+                terminal.poll();
+            }
 
-    // === Main Cooperative Polling Loop ===
-    // This loop serves as the central Kernel Executive until a scheduler and a userspace init
-    // process are implemented. It implements a Cooperative Polling architecture,
-    // where each system module is given a "time slice" to progress its
-    // internal state without blocking the CPU.
-    loop {
-        if let Some(terminal) = get_system_terminal() {
-            terminal.poll();
+            wait_for_interrupt();
         }
+    });
 
-        unsafe {
-            core::arch::asm!("wfe");
+    add_task("wait_for_event", || {
+        loop {
+            wait_for_event();
         }
-    }
+    });
+
+    start_sched()
 }

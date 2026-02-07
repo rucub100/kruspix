@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
 
-use core::arch::asm;
+use core::arch::{asm, naked_asm};
 
 #[inline(always)]
 pub fn core_id() -> usize {
@@ -16,10 +16,10 @@ pub fn local_disable_interrupts() -> usize {
     let daif: usize;
     unsafe {
         asm!(
-            "mrs {}, daif",
-            "msr daifset, #0b1111",
-            out(reg) daif,
-            options(nostack)
+        "mrs {}, daif",
+        "msr daifset, #0b1111",
+        out(reg) daif,
+        options(nostack)
         )
     };
     daif
@@ -48,9 +48,9 @@ pub fn local_disable_irq_fiq() -> usize {
 pub unsafe fn local_restore_interrupts(handle: usize) {
     unsafe {
         asm!(
-            "msr daif, {}",
-            in(reg) handle,
-            options(nostack)
+        "msr daif, {}",
+        in(reg) handle,
+        options(nostack)
         )
     };
 }
@@ -70,9 +70,9 @@ pub(crate) unsafe fn get_local<T>() -> &'static T {
     let val: usize;
     unsafe {
         asm!(
-            "mrs {0}, tpidr_el1",
-            out(reg) val,
-            options(nomem, nostack, preserves_flags)
+        "mrs {0}, tpidr_el1",
+        out(reg) val,
+        options(nomem, nostack, preserves_flags)
         );
 
         &*(val as *const T)
@@ -88,13 +88,11 @@ pub(crate) unsafe fn set_local<T>(data: &T) {
     }
 }
 
-#[derive(Default)]
 #[repr(C)]
 pub(crate) struct ArchContext {
-    x19_x30: [usize; 12],
-    stack_pointer: usize,
-    daif: usize,
-    // TODO: add more registers as needed (e.g. elr_el1, spsr_el1, etc.)
+    x19_x30: [usize; 12], // offset 0
+    stack_pointer: usize, // offset 96 (12 * 8)
+    daif: usize,          // offset 104 (96 + 8)
 }
 
 impl ArchContext {
@@ -108,79 +106,106 @@ impl ArchContext {
         Self {
             x19_x30,
             // align stack pointer to 16 bytes
-            stack_pointer: (stack.as_ptr_range().end as usize) & !0xF,
+            stack_pointer: ((stack.as_ptr_range().end as usize) - 16) & !0xF,
             daif: 0,
         }
     }
 }
 
-extern "C" fn entry_trampoline() -> ! {
-    let entry_fn: fn();
-    let cleanup_fn: fn();
-
-    unsafe {
-        asm!(
-        "mov {}, x19",
-        "mov {}, x20",
-        out(reg) entry_fn,
-        out(reg) cleanup_fn,
-        );
-    }
-
-    entry_fn();
-    cleanup_fn();
-
-    loop {
-        unsafe {
-            asm!("wfi");
-        }
-    }
+#[unsafe(naked)]
+extern "C" fn entry_trampoline() {
+    naked_asm!(
+        "blr x19",
+        "blr x20",
+        "1:",
+        "wfi",
+        "b 1b",
+    );
 }
 
-pub(crate) unsafe fn switch_context(old: &mut ArchContext, new: &ArchContext) -> ! {
-    unsafe {
-        asm!(
-            // save callee-saved registers x19-x30 into old context
-            "stp x19, x20, [{old}, #16 * 0]",
-            "stp x21, x22, [{old}, #16 * 1]",
-            "stp x23, x24, [{old}, #16 * 2]",
-            "stp x25, x26, [{old}, #16 * 3]",
-            "stp x27, x28, [{old}, #16 * 4]",
-            "stp x29, x30, [{old}, #16 * 5]",
-            // save stack pointer into old context
-            "mov {old_sp}, sp",
-            // save daif into old context
-            "mrs {old_daif}, daif",
-            // ================================================================
-            // restore daif from new context
-            "msr daif, {new_daif}",
-            // load stack pointer from new context
-            "mov sp, {new_sp}",
-            // restore callee-saved registers x19-x30 from new context
-            "ldp x19, x20, [{new}, #16 * 0]",
-            "ldp x21, x22, [{new}, #16 * 1]",
-            "ldp x23, x24, [{new}, #16 * 2]",
-            "ldp x25, x26, [{new}, #16 * 3]",
-            "ldp x27, x28, [{new}, #16 * 4]",
-            "ldp x29, x30, [{new}, #16 * 5]",
-            "ret",
-            old = in(reg) old,
-            old_sp = out(reg) old.stack_pointer,
-            old_daif = out(reg) old.daif,
-            new_daif = in(reg) new.daif,
-            new_sp = in(reg) new.stack_pointer,
-            new = in(reg) new,
-        )
-    }
+#[unsafe(naked)]
+pub(crate) extern "C" fn load_context(_new: &ArchContext) -> ! {
+    naked_asm!(
+        // load stack pointer from new context
+        "ldr x9, [x0, #96]",
+        "mov sp, x9",
+        // restore callee-saved registers x19-x30 from new context
+        "ldp x19, x20, [x0, #16 * 0]",
+        "ldp x21, x22, [x0, #16 * 1]",
+        "ldp x23, x24, [x0, #16 * 2]",
+        "ldp x25, x26, [x0, #16 * 3]",
+        "ldp x27, x28, [x0, #16 * 4]",
+        "ldp x29, x30, [x0, #16 * 5]",
+        // sync barrier
+        "isb",
+        // restore daif from new context
+        "ldr x9, [x0, #104]",
+        "msr daif, x9",
+        // return to the restored context (x30 is the return address)
+        "ret",
+    )
+}
 
-    unreachable!()
+#[unsafe(naked)]
+pub(crate) extern "C" fn switch_context(_old: &ArchContext, _new: &ArchContext) {
+    naked_asm!(
+        // save callee-saved registers x19-x30 into old context
+        "stp x19, x20, [x0, #16 * 0]",
+        "stp x21, x22, [x0, #16 * 1]",
+        "stp x23, x24, [x0, #16 * 2]",
+        "stp x25, x26, [x0, #16 * 3]",
+        "stp x27, x28, [x0, #16 * 4]",
+        "stp x29, x30, [x0, #16 * 5]",
+        // save stack pointer into old context
+        "mov x9, sp",
+        "str x9, [x0, #96]",
+        // save daif into old context
+        "mrs x9, daif",
+        "str x9, [x0, #104]",
+        // ================================================================
+        // load stack pointer from new context
+        "ldr x9, [x1, #96]",
+        "mov sp, x9",
+        // restore callee-saved registers x19-x30 from new context
+        "ldp x19, x20, [x1, #16 * 0]",
+        "ldp x21, x22, [x1, #16 * 1]",
+        "ldp x23, x24, [x1, #16 * 2]",
+        "ldp x25, x26, [x1, #16 * 3]",
+        "ldp x27, x28, [x1, #16 * 4]",
+        "ldp x29, x30, [x1, #16 * 5]",
+        // sync barrier
+        "isb",
+        // restore daif from new context
+        "ldr x9, [x1, #104]",
+        "msr daif, x9",
+        // return to the restored context (x30 is the return address)
+        "ret",
+    )
 }
 
 pub(crate) fn idle_task() {
     loop {
-        // Idle task does nothing, just waits for interrupts
-        unsafe {
-            asm!("wfi", options(nomem, nostack, preserves_flags));
-        }
+        wait_for_interrupt();
+    }
+}
+
+#[inline(always)]
+pub fn wait_for_interrupt() {
+    unsafe {
+        asm!("wfi", "isb", options(nomem, nostack, preserves_flags));
+    }
+}
+
+#[inline(always)]
+pub fn wait_for_event() {
+    unsafe {
+        asm!("wfe", options(nomem, nostack, preserves_flags));
+    }
+}
+
+#[inline(always)]
+pub fn send_event() {
+    unsafe {
+        asm!("sev", options(nomem, nostack, preserves_flags));
     }
 }

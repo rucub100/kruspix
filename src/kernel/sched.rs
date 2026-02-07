@@ -13,19 +13,21 @@
 //! - in contrast the scheduler manages the ready queue but does not perform context switches
 //! - what about the IO scheduler?
 
+use alloc::boxed::Box;
+use alloc::collections::VecDeque;
+use alloc::string::{String, ToString};
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::sync::atomic::{AtomicUsize, Ordering};
+use core::time::Duration;
+
 use crate::arch::cpu::{
-    ArchContext, idle_task, local_disable_interrupts, local_disable_irq_fiq, switch_context,
+    ArchContext, idle_task, local_disable_irq_fiq, load_context, switch_context,
 };
 use crate::kernel::cpu::get_local_data;
 use crate::kernel::irq::register_handler;
 use crate::kernel::sync::{OnceLock, SpinLock, without_irq_fiq};
 use crate::kprintln;
-use alloc::boxed::Box;
-use alloc::collections::VecDeque;
-use alloc::sync::Arc;
-use alloc::vec::Vec;
-use core::sync::atomic::AtomicUsize;
-use core::time::Duration;
 
 const KERNEL_STACK_SIZE: usize = 0x4000;
 const TASK_QUANTUM: Duration = Duration::from_millis(10);
@@ -56,6 +58,7 @@ enum TaskState {
 
 struct Task {
     tid: usize,
+    name: String,
     state: TaskState,
     pcb: Option<Arc<ProcessControlBlock>>,
     context: ArchContext,
@@ -63,13 +66,14 @@ struct Task {
 }
 
 impl Task {
-    pub fn new(entry: fn()) -> Arc<Self> {
-        let tid = NEXT_TID.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+    pub fn new(name: &str, entry: fn()) -> Arc<Self> {
+        let tid = NEXT_TID.fetch_add(1, Ordering::SeqCst);
         let kernel_stack = Box::new([0u8; KERNEL_STACK_SIZE]);
         let context = ArchContext::new(&kernel_stack, entry, terminate_task);
 
         Arc::new(Self {
             tid,
+            name: name.to_string(),
             state: TaskState::New,
             pcb: None,
             context,
@@ -82,7 +86,7 @@ struct Scheduler {
     new_queue: SpinLock<VecDeque<Arc<Task>>>,
     ready_queue: SpinLock<VecDeque<Arc<Task>>>,
     terminated_queue: SpinLock<VecDeque<Arc<Task>>>,
-    current_task: SpinLock<Option<Arc<Task>>>,
+    current_task: SpinLock<Arc<Task>>,
     idle_task: Arc<Task>,
 }
 
@@ -90,26 +94,22 @@ static SCHEDULER: OnceLock<Scheduler> = OnceLock::new();
 
 impl Scheduler {
     fn new() -> Self {
-        Scheduler {
+        let idle_task = Task::new("idle_task", idle_task);
+
+        Self {
             new_queue: SpinLock::new(VecDeque::new()),
             ready_queue: SpinLock::new(VecDeque::new()),
             terminated_queue: SpinLock::new(VecDeque::new()),
-            current_task: SpinLock::new(None),
-            idle_task: Task::new(idle_task),
+            current_task: SpinLock::new(idle_task.clone()),
+            idle_task,
         }
     }
 
     pub fn start(&self) -> ! {
-        let mut boot_context = ArchContext::default();
+        let first_task = { self.current_task.lock().clone() };
+        let context = &first_task.context;
 
-        let first_task = {
-            let mut ready_q = self.ready_queue.lock();
-            ready_q.pop_front().unwrap_or(self.idle_task.clone())
-        };
-
-        self.current_task.lock().replace(first_task.clone());
-
-        unsafe { switch_context(&mut boot_context, &first_task.context) }
+        load_context(context)
     }
 
     pub fn add_task(&self, task: Arc<Task>) {
@@ -118,19 +118,43 @@ impl Scheduler {
     }
 
     pub fn schedule(&self) {
-        // check if new tasks are available (and move to ready queue)
+        // move new tasks to ready queue
+        {
+            let mut new_queue = self.new_queue.lock();
+            let mut ready_queue = self.ready_queue.lock();
+            while let Some(task) = new_queue.pop_front() {
+                ready_queue.push_back(task);
+            }
+        }
+
         // determine the next task to run
-        // put the current task back to the ready queue
-        // update the current task
-        // call context switch
-        // resume when scheduler decide to switch back
-        todo!()
+        let next_task = { self.ready_queue.lock().pop_front() };
+
+        if next_task.is_none() {
+            // no ready tasks, continue with the current task
+            return;
+        }
+
+        let next_task = next_task.unwrap();
+
+        // put the current task back to the ready queue if it's not the idle task
+        let current_task = { self.current_task.lock().clone() };
+        if current_task.tid != self.idle_task.tid {
+            self.ready_queue.lock().push_back(current_task.clone());
+        }
+
+        // update the current task with the next task
+        {
+            *self.current_task.lock() = next_task.clone();
+        }
+
+        switch_context(&current_task.context, &next_task.context);
     }
 }
 
-pub fn add_task(entry: fn()) {
+pub fn add_task(name: &str, entry: fn()) {
     if let Some(scheduler) = SCHEDULER.get() {
-        let task = Task::new(entry);
+        let task = Task::new(name, entry);
         scheduler.add_task(task);
     } else {
         kprintln!("[ERROR] Scheduler not initialized");
