@@ -96,7 +96,7 @@ pub(crate) struct ArchContext {
 }
 
 impl ArchContext {
-    pub fn new(stack: &[u8], entry: fn(), cleanup: fn()) -> Self {
+    pub fn new(stack: &[u8], entry: fn(), cleanup: fn() -> !) -> Self {
         let mut x19_x30 = [0usize; 12];
 
         x19_x30[0] = entry as usize;

@@ -37,6 +37,7 @@ struct ProcessControlBlock {
 
 static PROCESS_TABLE: SpinLock<Vec<ProcessControlBlock>> = SpinLock::new(Vec::new());
 
+#[derive(PartialEq, Eq)]
 enum TaskState {
     New,
     Ready,
@@ -48,14 +49,14 @@ enum TaskState {
 struct Task {
     tid: usize,
     name: String,
-    state: TaskState,
+    state: SpinLock<TaskState>,
     pcb: Option<Arc<ProcessControlBlock>>,
     context: ArchContext,
     kernel_stack: Box<[u8]>,
 }
 
 impl Task {
-    pub fn new(name: &str, entry: fn()) -> Arc<Self> {
+    fn new(name: &str, entry: fn()) -> Arc<Self> {
         let tid = NEXT_TID.fetch_add(1, Ordering::SeqCst);
         let kernel_stack = vec![0u8; KERNEL_STACK_SIZE].into_boxed_slice();
         let context = ArchContext::new(&kernel_stack, entry, terminate_task);
@@ -63,11 +64,15 @@ impl Task {
         Arc::new(Self {
             tid,
             name: name.to_string(),
-            state: TaskState::New,
+            state: SpinLock::new(TaskState::New),
             pcb: None,
             context,
             kernel_stack,
         })
+    }
+
+    fn has_state(&self, state: TaskState) -> bool {
+        *self.state.lock() == state
     }
 }
 
@@ -94,41 +99,45 @@ impl Scheduler {
         }
     }
 
-    pub fn start(&self) -> ! {
+    fn start(&self) -> ! {
         let first_task = { self.current_task.lock().clone() };
+        *first_task.state.lock() = TaskState::Running;
         let context = &first_task.context;
 
         load_context(context)
     }
 
-    pub fn add_task(&self, task: Arc<Task>) {
+    fn add_task(&self, name: &str, entry: fn()) {
         let mut new_queue = self.new_queue.lock();
-        new_queue.push_back(task);
+        new_queue.push_back(Task::new(name, entry));
     }
 
-    pub fn schedule(&self) {
-        // move new tasks to ready queue
-        {
-            let mut new_queue = self.new_queue.lock();
-            let mut ready_queue = self.ready_queue.lock();
-            while let Some(task) = new_queue.pop_front() {
-                ready_queue.push_back(task);
-            }
-        }
+    fn exit_current(&self) {
+        let current_task = { self.current_task.lock().clone() };
+        *current_task.state.lock() = TaskState::Terminated;
+        self.terminated_queue.lock().push_back(current_task);
+        self.schedule();
+    }
+
+    fn schedule(&self) {
+        self._prepare_new_tasks();
+
+        let current_task = { self.current_task.lock().clone() };
+        let current_may_continue = current_task.has_state(TaskState::Running);
 
         // determine the next task to run
-        let next_task = { self.ready_queue.lock().pop_front() };
-
+        let mut next_task = { self.ready_queue.lock().pop_front() };
         if next_task.is_none() {
-            // no ready tasks, continue with the current task
-            return;
-        }
+            if current_may_continue {
+                return;
+            }
 
+            next_task = Some(self.idle_task.clone());
+        }
         let next_task = next_task.unwrap();
 
         // put the current task back to the ready queue if it's not the idle task
-        let current_task = { self.current_task.lock().clone() };
-        if current_task.tid != self.idle_task.tid {
+        if current_may_continue && current_task.tid != self.idle_task.tid {
             self.ready_queue.lock().push_back(current_task.clone());
         }
 
@@ -137,7 +146,22 @@ impl Scheduler {
             *self.current_task.lock() = next_task.clone();
         }
 
+        if current_may_continue {
+            *current_task.state.lock() = TaskState::Ready;
+        }
+        *next_task.state.lock() = TaskState::Running;
+
         switch_context(&current_task.context, &next_task.context);
+    }
+
+    #[inline(always)]
+    fn _prepare_new_tasks(&self) {
+        let mut new_queue = self.new_queue.lock();
+        let mut ready_queue = self.ready_queue.lock();
+        while let Some(task) = new_queue.pop_front() {
+            *task.state.lock() = TaskState::Ready;
+            ready_queue.push_back(task);
+        }
     }
 }
 
@@ -154,10 +178,10 @@ pub fn add_task(name: &str, entry: fn()) {
     if let Some(scheduler) = SCHEDULER.get() {
         let task = Task::new(name, entry);
         without_irq_fiq(|| {
-            scheduler.add_task(task);
+            scheduler.add_task(name, entry);
         });
     } else {
-        kprintln!("[ERROR] Scheduler not initialized");
+        panic!("[ERROR] Scheduler not initialized");
     }
 }
 
@@ -168,12 +192,38 @@ pub fn yield_task() {
             scheduler.schedule();
         });
     } else {
-        kprintln!("[ERROR] Scheduler not initialized");
+        panic!("[ERROR] Scheduler not initialized");
     }
 }
 
-pub fn terminate_task() {
-    todo!()
+#[inline]
+pub fn terminate_task() -> ! {
+    if let Some(scheduler) = SCHEDULER.get() {
+        without_irq_fiq(|| {
+            scheduler.exit_current();
+        });
+    } else {
+        panic!("[ERROR] Scheduler not initialized");
+    }
+
+    unreachable!()
+}
+
+#[inline]
+pub fn exit() -> ! {
+    terminate_task()
+}
+
+#[inline]
+pub fn task_id() -> usize {
+    if let Some(scheduler) = SCHEDULER.get() {
+        without_irq_fiq(|| {
+            let current_task = scheduler.current_task.lock();
+            current_task.tid
+        })
+    } else {
+        0
+    }
 }
 
 pub fn start_sched() -> ! {

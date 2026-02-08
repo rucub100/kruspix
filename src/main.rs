@@ -49,9 +49,12 @@ pub extern "C" fn start_kernel() -> ! {
     });
 
     add_task("show_uptime", || {
+        let mut count: u64 = 0;
         loop {
             let uptime = uptime();
             let secs = uptime.as_secs();
+
+            count += 1;
 
             sleep(Duration::from_millis(500));
 
@@ -63,6 +66,11 @@ pub extern "C" fn start_kernel() -> ! {
                 without_irq_fiq(|| {
                     terminal.write(uptime_str.as_bytes());
                 });
+            }
+
+            // run this task only for 10 seconds and let it finish, so we can test task termination and cleanup
+            if count > 20 {
+                break;
             }
         }
     });
