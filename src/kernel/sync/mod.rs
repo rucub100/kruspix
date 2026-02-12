@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 mod once_lock;
 mod spin_lock;
@@ -9,6 +9,7 @@ use crate::arch::cpu::{local_disable_interrupts, local_disable_irq_fiq, local_re
 
 pub(crate) use once_lock::OnceLock;
 pub(crate) use spin_lock::SpinLock;
+pub(crate) use spin_lock::SpinLockGuard;
 
 const ADDR_LOCK_BITS: u32 = 8;
 const ADDR_LOCK_COUNT: usize = 1 << ADDR_LOCK_BITS;

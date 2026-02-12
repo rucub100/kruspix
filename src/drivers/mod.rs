@@ -128,6 +128,8 @@ pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     &rng::bcm2835_rng::DRIVER,
     // serial
     &serial::bcm2835_aux_uart::DRIVER,
+    // mailbox
+    &mailbox::bcm2835_mbox::DRIVER,
 ];
 
 pub struct DeviceManager {

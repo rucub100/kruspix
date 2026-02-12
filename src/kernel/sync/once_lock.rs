@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use core::cell::UnsafeCell;
 use core::hint::spin_loop;
@@ -20,6 +20,10 @@ impl<T> OnceLock<T> {
             status: AtomicU8::new(UNINITIALIZED),
             data: UnsafeCell::new(None),
         }
+    }
+    
+    pub fn is_initialized(&self) -> bool {
+        self.status.load(Ordering::Acquire) == INITIALIZED
     }
 
     pub fn get(&self) -> Option<&T> {
