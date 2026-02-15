@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 Ruslan Curbanov <info@ruslan-curbanov.de>
+// Copyright (c) 2025-2026 Ruslan Curbanov <info@ruslan-curbanov.de>
 
 use core::panic::PanicInfo;
 
+use crate::arch::cpu::wait_for_event;
 use crate::{kprint, kprintln};
 
 #[panic_handler]
@@ -23,8 +24,6 @@ pub fn panic(_info: &PanicInfo) -> ! {
     kprintln!("  Message: {}", _info.message());
 
     loop {
-        unsafe {
-            core::arch::asm!("wfe");
-        }
+        wait_for_event();
     }
 }
