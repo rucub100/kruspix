@@ -130,6 +130,8 @@ pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     &serial::bcm2835_aux_uart::DRIVER,
     // mailbox
     &mailbox::bcm2835_mbox::DRIVER,
+    // firmware
+    &syscon::bcm2835_firmware::DRIVER,
 ];
 
 pub struct DeviceManager {
@@ -157,12 +159,23 @@ impl DeviceManager {
 
         Ok(())
     }
+
+    pub fn get_device(&self, path: &str) -> Option<Arc<dyn Device>> {
+        let bindings = self.bindings.lock_irq();
+        bindings.iter().find_map(|(driver, driver_path)| {
+            if driver_path == path {
+                driver.get_device(driver_path)
+            } else {
+                None
+            }
+        })
+    }
 }
 
 unsafe impl Send for DeviceManager {}
 unsafe impl Sync for DeviceManager {}
 
-static DEVICE_MANAGER: DeviceManager = DeviceManager::new();
+pub static DEVICE_MANAGER: DeviceManager = DeviceManager::new();
 
 pub fn init_platform_drivers() {
     kprintln!("Initializing platform drivers...");

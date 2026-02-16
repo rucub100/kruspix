@@ -58,7 +58,7 @@ struct MailboxDevice {
     reg_base: usize,
     enabled: AtomicBool,
     lock: SpinLock<()>,
-    buffer: Arc<SpinLock<VecDeque<u32>>>,
+    queue: Arc<SpinLock<VecDeque<u32>>>,
 }
 
 impl MailboxDevice {
@@ -68,7 +68,7 @@ impl MailboxDevice {
             reg_base,
             enabled: AtomicBool::new(false),
             lock: SpinLock::new(()),
-            buffer: Arc::new(SpinLock::new(VecDeque::new())),
+            queue: Arc::new(SpinLock::new(VecDeque::new())),
         }
     }
 
@@ -129,8 +129,7 @@ impl Device for MailboxDevice {
             return Err(DriverInitError::DeviceTreeError);
         }
 
-        register_mailbox(self.clone(), self.buffer.clone())
-            .map_err(|_| DriverInitError::DeviceTreeError)?;
+        register_mailbox(self.clone()).map_err(|_| DriverInitError::DeviceTreeError)?;
 
         Ok(())
     }
@@ -149,7 +148,7 @@ impl InterruptHandler for MailboxDevice {
             }
 
             let msg = self.read_mbox_0();
-            self.buffer.lock().push_back(msg);
+            self.queue.lock().push_back(msg);
         }
     }
 }
@@ -179,6 +178,17 @@ impl Mailbox for MailboxDevice {
         Ok(())
     }
 
+    fn receive(&self) -> Option<Self::Message> {
+        let status = self.get_mbox_0_status();
+        if (status & MBOX_STATUS_EMPTY) != 0 {
+            return None;
+        }
+
+        let msg = self.read_mbox_0();
+        self.queue.lock().push_back(msg);
+        Some(msg)
+    }
+
     fn ready(&self) -> bool {
         if !self.enabled.load(Ordering::Acquire) {
             return false;
@@ -189,6 +199,10 @@ impl Mailbox for MailboxDevice {
         drop(lock);
 
         (status & MBOX_STATUS_FULL) == 0
+    }
+
+    fn queue(&self) -> Arc<SpinLock<VecDeque<Self::Message>>> {
+        self.queue.clone()
     }
 }
 
