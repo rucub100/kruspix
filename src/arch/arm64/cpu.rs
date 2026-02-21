@@ -114,13 +114,7 @@ impl ArchContext {
 
 #[unsafe(naked)]
 extern "C" fn entry_trampoline() {
-    naked_asm!(
-        "blr x19",
-        "blr x20",
-        "1:",
-        "wfi",
-        "b 1b",
-    );
+    naked_asm!("blr x19", "blr x20", "1:", "wfi", "b 1b",);
 }
 
 #[unsafe(naked)]
@@ -202,4 +196,73 @@ pub fn send_event() {
     unsafe {
         asm!("sev", options(nomem, nostack, preserves_flags));
     }
+}
+
+#[inline(always)]
+pub fn memory_barrier() {
+    unsafe {
+        asm!("dsb sy", options(nostack, preserves_flags));
+    }
+}
+
+/// Reads the Cache Type Register (CTR_EL0) to dynamically determine
+/// the CPU's data cache line size in bytes.
+#[inline(always)]
+fn data_cache_line_size() -> usize {
+    let ctr_el0: u64;
+
+    unsafe {
+        // Read Cache Type Register
+        asm!("mrs {}, ctr_el0", out(reg) ctr_el0, options(nomem, nostack, preserves_flags));
+    }
+    // Extract the DminLine field (bits 19:16).
+    // This gives the log2 of the number of 4-byte words in the cache line.
+    let dminline = (ctr_el0 >> 16) & 0xF;
+
+    // Convert to bytes: 4 bytes * (2 ^ dminline)
+    1 << (dminline + 2)
+}
+
+/// Cleans the data cache (forces L1/L2 dirty lines to physical RAM).
+pub unsafe fn clean_data_cache_range(start_virt_addr: usize, size: usize) {
+    if size == 0 {
+        return;
+    }
+
+    let line_size = data_cache_line_size();
+    let end_addr = start_virt_addr + size;
+
+    // Align the start address DOWN to the nearest cache line boundary
+    let mut addr = start_virt_addr & !(line_size - 1);
+
+    while addr < end_addr {
+        // dc cvac = Data Cache Clean by Virtual Address to point of Coherency
+        unsafe {
+            asm!("dc cvac, {}", in(reg) addr, options(nostack, preserves_flags));
+        }
+        addr += line_size;
+    }
+
+    memory_barrier();
+}
+
+/// Invalidates the data cache (forces CPU to discard L1/L2 and read from RAM).
+pub unsafe fn invalidate_data_cache_range(start_virt_addr: usize, size: usize) {
+    if size == 0 {
+        return;
+    }
+
+    let line_size = data_cache_line_size();
+    let end_addr = start_virt_addr + size;
+
+    let mut addr = start_virt_addr & !(line_size - 1);
+
+    while addr < end_addr {
+        unsafe {
+            asm!("dc ivac, {}", in(reg) addr, options(nostack, preserves_flags));
+        }
+        addr += line_size;
+    }
+
+    memory_barrier();
 }

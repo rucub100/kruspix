@@ -3,9 +3,7 @@
 
 //! See [Mailbox property interface](https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface).
 
-use alloc::string::String;
-use alloc::sync::Arc;
-
+use crate::arch::cpu::{clean_data_cache_range, invalidate_data_cache_range};
 use crate::drivers::mailbox::{MailboxClient, take_mailbox};
 use crate::drivers::{DEVICE_MANAGER, Device, DriverInitError, DriverRegistry, PlatformDriver};
 use crate::kernel::devicetree::node::Node;
@@ -14,6 +12,8 @@ use crate::kernel::devicetree::{PHandle, get_devicetree};
 use crate::kernel::sync::OnceLock;
 use crate::kprintln;
 use crate::mm::virt_to_phys;
+use alloc::string::String;
+use alloc::sync::Arc;
 
 const MBOX_0_CH_8_ARM_VC_TAGS: u32 = 8;
 
@@ -183,14 +183,16 @@ impl Tag<1> {
     }
 }
 
-#[repr(C, align(16))]
+/// The message structure for communicating with the firmware via the mailbox property interface.
+/// The total size of the message must be a multiple of 64 bytes to avoid cache line issues.
+#[repr(C, align(64))]
 struct Message<const WORDS: usize> {
     size: u32,
     req_res_code: u32,
     data: [u32; WORDS],
 }
 
-impl Message<6> {
+impl Message<14> {
     const fn new_get_firmware_revision() -> Self {
         let tag = Tag::get_firmware_revision();
 
@@ -203,7 +205,15 @@ impl Message<6> {
                 tag.req_res_code,
                 tag.value_buffer[0],
                 tag::END_TAG,
-                0, // padding to make it multiple of 16 bytes
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
             ],
         }
     }
@@ -229,6 +239,10 @@ impl RpiFirmware {
         let phys_addr = virt_to_phys(virt_addr);
         let data = phys_addr as u32 | MBOX_0_CH_8_ARM_VC_TAGS;
 
+        unsafe {
+            clean_data_cache_range(virt_addr, size_of::<Message<N>>());
+        }
+
         mbox.send(data)
             .map_err(|e| kprintln!("[ERROR] Failed to send message: {:?}", e))?;
 
@@ -246,17 +260,33 @@ impl RpiFirmware {
             return Err(());
         }
 
+        unsafe {
+            invalidate_data_cache_range(virt_addr, size_of::<Message<N>>());
+        }
+
+        if msg.req_res_code != RESPONSE_CODE_SUCCESS {
+            kprintln!(
+                "[ERROR] Firmware rejected the property request. Code: {:#x}",
+                msg.req_res_code
+            );
+
+            return Err(());
+        }
+
         Ok(())
     }
 
-    fn print_info(&self) {
+    fn print_info(&self) -> Result<(), ()> {
         let mut msg = Message::new_get_firmware_revision();
         if self.property(&mut msg).is_ok() {
             let firmware_revision = msg.data[3];
             kprintln!("Firmware revision: {:#x}", firmware_revision);
         } else {
             kprintln!("[ERROR] Failed to get firmware revision");
+            return Err(());
         }
+
+        Ok(())
     }
 }
 
@@ -272,7 +302,8 @@ impl Device for RpiFirmware {
             .set(mbox)
             .map_err(|_| DriverInitError::DeviceFailed)?;
 
-        self.print_info();
+        self.print_info()
+            .map_err(|_| DriverInitError::DeviceFailed)?;
 
         Ok(())
     }
