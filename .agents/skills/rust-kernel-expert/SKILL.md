@@ -207,7 +207,7 @@ Implement `early_init(&'static self, fdt: &Fdt, path: &str)` on the driver stati
 - **Do not read/write MMIO before `map_io_region()`** — the virtual address does not exist yet.
 - **Never call `sleep()` or `yield_task()` from IRQ context** — ISR handlers must be non-blocking.
 - **`without_irq_fiq` is not reentrant** — nesting is safe but keep critical sections minimal.
-- **Add `isb` after every ARM system register write** — without it, the CPU may speculatively use the old value. Use: `unsafe { core::arch::asm!("isb", options(nomem, nostack)); }`
+- **Add `isb` after every ARM system register write** — without it, the CPU may speculatively use the old value. Use: `unsafe { core::arch::asm!("isb"); }`
 - **`map_page()` for user VA space calls `todo!()`** — user space mapping is not yet implemented.
 - **`sleep()` is currently a busy-loop** — do not rely on it for precise timing in production paths.
 - **The heap allocator does NOT recover freed multi-page blocks** — large allocations (>4KiB) are effectively permanent.

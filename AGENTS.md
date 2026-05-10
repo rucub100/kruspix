@@ -22,7 +22,7 @@ When generating code, analyzing bugs, or suggesting architectural changes, refer
 The source code is modularized into distinct subsystems:
 
 - **`src/main.rs`**: The kernel entry point (`start_kernel`). Orchestrates early boot: arch setup, paging, heap, devicetree, drivers, and scheduler initiation.
-- **`src/lib.rs`**: Library crate root. Re-exports all top-level modules (`arch`, `common`, `drivers`, `kernel`, `mm`). Does not contain any boot logic.
+- **`src/lib.rs`**: Library crate root. Re-exports all top-level modules (`arch`, `common`, `drivers`, `kernel`, `mm`, `panic_handler`). Does not contain any boot logic.
 - **`src/panic_handler.rs`**: Defines the `#[panic_handler]`. On panic it prints the file/line/message via `kprintln!` and halts with `wait_for_event()`. Modify this file if you need to change the panic output format.
 - **`src/arch/arm64/`**: Architecture-specific logic for ARMv8/AArch64.
     - `kernel/`: Low-level CPU setup (`setup.rs`) and exception vector table entry (`entry.rs`).
@@ -43,7 +43,7 @@ The source code is modularized into distinct subsystems:
     - `memory.rs`: Available memory calculation.
     - Helper functions: `virt_to_phys`, `phys_to_virt`, `alloc_page`, `dealloc_page`, `map_io_region`.
     - **Note:** Virtual memory mappings (page tables, MMU) live in `src/arch/arm64/mm/mmu/`, not here.
-- **`src/drivers/`**: Device drivers structured around a Platform Driver model. Drivers are initialized based on Device Tree nodes. Registered drivers include: interrupt controllers, clocks, timers, watchdog, RNG, UART (serial), mailbox, and firmware (syscon). **Note:** `src/drivers/spi/` exists as a directory but is not yet implemented or registered.
+- **`src/drivers/`**: Device drivers structured around a Platform Driver model. Drivers are initialized based on Device Tree nodes. Registered drivers include: interrupt controllers, clocks, timers, watchdog, RNG, UART (serial), mailbox, and firmware (syscon). **Note:** The following driver directories exist but are not yet implemented or registered: `spi/`, `bluetooth/`, `display/`, `dma_controller/`, `ethernet/`, `mmc/`, `pinctrl/`, `usb/`, `wifi/`.
 - **`src/common/`**: General utilities and data structures (e.g., `ring_array.rs`, `hash.rs`).
 - **`src/fs/`, `src/net/`, `src/ipc/`, `src/init/`**: Stub/placeholder directories for planned future subsystems (filesystem, networking, IPC, init system). Currently empty — do not implement into these without explicit instruction.
 
@@ -67,7 +67,7 @@ The source code is modularized into distinct subsystems:
 
 2. **Concurrency & Synchronization:**
     - Standard threading (`std::thread`) is unavailable.
-    - Use `kruspix::kernel::sync::SpinLock` for data protection.
+    - Use `crate::kernel::sync::SpinLock` for data protection.
     - For logic that must not be interrupted, execute it within `without_irq_fiq(|| { ... })` to locally disable ARM IRQ/FIQ exceptions.
 
 3. **Memory Safety & Unsafe Rust:**
@@ -77,7 +77,7 @@ The source code is modularized into distinct subsystems:
 4. **Hardware Interactions (MMIO):**
     - Peripheral interactions should map memory properly using `map_io_region`.
     - Rely on `core::ptr::read_volatile` and `core::ptr::write_volatile` for reading/writing hardware registers.
-    - For synchronizing access to a specific MMIO register address across cores or drivers, use `with_addr_lock(register_va, || { ... })` from `kruspix::kernel::sync` instead of a global lock. It hashes the address with Fibonacci hashing to select one of 256 fine-grained spinlocks, minimizing contention.
+    - For synchronizing access to a specific MMIO register address across cores or drivers, use `with_addr_lock(register_va, || { ... })` from `crate::kernel::sync` instead of a global lock. It hashes the address with Fibonacci hashing to select one of 256 fine-grained spinlocks, minimizing contention.
 
 5. **Driver Development:**
     - Drivers must implement the `PlatformDriver` trait and declare their supported Device Tree "compatible" strings via the `compatible()` method.
@@ -95,7 +95,7 @@ The source code is modularized into distinct subsystems:
 
 ## 🚀 Entry Point Flow (`start_kernel`)
 When modifying initialization logic, preserve this sequence:
-1. `setup_arch()` - Low level CPU/Vector tables.
+1. `setup_arch()` - Reads the FDT address and initializes physical memory layout. (Note: exception vector tables and EL transition are set up in `entry.rs` assembly, before `start_kernel` is called.)
 2. `setup_page_tables()` & `init_heap()` - Virtual memory and dynamic allocation.
 3. `init_local_data()` - Per-core structures.
 4. `init_devicetree()` - Parse FDT.

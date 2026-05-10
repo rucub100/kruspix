@@ -35,6 +35,7 @@ Use the correct pattern for each use case:
 | Simple counter/flag | `static X: AtomicUsize = AtomicUsize::new(0);` |
 | Driver static (must be `const`-initialized) | `pub static DRIVER: MyDriver = MyDriver::new();` |
 
+- **Never use `static mut`.** It is highly unsafe and an anti-pattern. Use the safe wrappers listed above instead.
 - Every struct used as a `static` MUST have a `const fn new()` constructor.
 - To get a `&'static T` from a heap-allocated value, use `Box::leak(Box::new(value))`.
 
