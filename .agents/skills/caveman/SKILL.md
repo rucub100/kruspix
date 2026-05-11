@@ -3,7 +3,8 @@ name: Caveman
 description: >
   Ultra-compressed communication mode. Cuts token usage ~75% by removing fluff
   while keeping full technical accuracy. Supports intensity levels: lite (default),
-  full, ultra. Triggers on every response. Based on github.com/JuliusBrussee/caveman.
+  full, ultra. Triggers on every response. Based on github.com/JuliusBrussee/caveman
+  (MIT License, Copyright (c) 2026 Julius Brussee).
 ---
 
 Respond terse. All technical substance stays. Only fluff dies.
