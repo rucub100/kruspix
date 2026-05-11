@@ -1,18 +1,20 @@
 # kruspix
 
-Kruspix is a hands-on, educational kernel for the Raspberry Pi, written in Rust. This project is designed to help you
-get a feel for bare metal programming and build your own operating system from the ground up.
+Kruspix is a hands-on, educational bare-metal OS kernel for the Raspberry Pi, written in Rust.
+I built this project to learn OS fundamentals from the ground up &ndash; boot, memory management,
+exceptions, scheduling, and device drivers, all without an OS underneath.
 
-## Hardware Support (WIP)
+## Hardware Support
 
 - [ ] Raspberry Pi 2 Model B v1.2 (BCM2837)
-- [ ] Raspberry Pi 3 Model B v1.2 (BCM2837)
+- [X] Raspberry Pi 3 Model B v1.2 (BCM2837)
 - [ ] Raspberry Pi 4 Model B (BCM2711)
+- [ ] Raspberry Pi 5 (BCM2712)
 
 ## Prerequisites
 
 - [Rust](https://www.rust-lang.org/): Make sure you have Rust installed.
-  - add the target for Bare ARM64 (see [The rustc book - Platform Support](https://doc.rust-lang.org/rustc/platform-support.html)):
+  - Add the target for Bare ARM64 (see [The rustc book - Platform Support](https://doc.rust-lang.org/rustc/platform-support.html)):
     ```shell
     rustup target add aarch64-unknown-none
     ```
@@ -24,56 +26,48 @@ get a feel for bare metal programming and build your own operating system from t
 - [Raspberry Pi Imager](https://www.raspberrypi.com/software/): To install kruspix OS to a microSD card
 - [QEMU](https://www.qemu.org/): Required for emulating the Raspberry Pi and testing the kernel without real hardware
 
-## Getting Started (WIP)
-
-### Project Structure (WIP)
-
-`src/`:
-- `arch/`: Architecture-specific code (e.g., ARM64) - boot, memory, CPU, interrupts, MMU, SMP, platform SoCs
-- `common/`: Common libraries and utilities
-- `docs`: Documentation and design notes
-- `drivers/`: Device drivers (e.g., UART, GPIO)
-- `fs/`: File system implementations
-- `init/`: Kernel initialization code
-- `ipc/`: Inter-process communication mechanisms
-- `kernel/`: Core kernel components (e.g., scheduler, locking)
-- `mm/`: Memory management (e.g., paging, allocators)
-- `net/`: Networking stack
-- `scripts/`: Scripts for automation
-- `tools/`: Tools
-
-TODO: Add instructions on minimal steps to build and run locally (QEMU and hardware)
+## Getting Started
 
 ### Building the Kernel
-
-TODO: User a Dockerfile for a consistent build environment?
 
 #### Build the kernel image
 ```shell
 cargo objcopy --release -- -O binary target/kruspix.img
 ```
-#### Windows: copy to microSD card and eject
+
+### Run in QEMU
+
+Before running, the Raspberry Pi 3 device tree binary must be placed at `raspberrypi/bcm2710-rpi-3-b.dtb`.
+This file is not included in the repository &ndash; download it from the
+[official Raspberry Pi firmware repo](https://github.com/raspberrypi/firmware/tree/master/boot):
+
+```shell
+# create the folder and download the DTB
+mkdir raspberrypi
+curl -L -o raspberrypi/bcm2710-rpi-3-b.dtb https://github.com/raspberrypi/firmware/raw/master/boot/bcm2710-rpi-3-b.dtb
+```
+
+Then launch the kernel in QEMU:
+
+```shell
+cargo run
+```
+
+This uses the runner configured in `.cargo/config.toml` &ndash; it launches `qemu-system-aarch64`
+with the `raspi3b` machine, the BCM2710 device tree, and serial output on stdio.
+
+### Run on Hardware
+
+#### Copy to microSD card and eject (Windows)
 ```shell
 cp .\target\kruspix.img H:\boot\kruspix.img; (New-Object -ComObject Shell.Application).Namespace(17).ParseName("H:").InvokeVerb("Eject")
 ```
 
-
-### Qemu (WIP)
-
-TODO: How to start the kernel in QEMU?
-
-### Raspberry Pi `config.txt`
+#### `usercfg.txt`
 
 ```text
-# do not modify this file as it will be overwritten on upgrade.
-# create and/or modify usercfg.txt instead.
-# https://www.raspberrypi.com/documentation/computers/config_txt.html
-
-#kernel=boot/vmlinuz-rpi
 kernel=boot/kruspix.img
-#initramfs boot/initramfs-rpi
 arm_64bit=1
-#include usercfg.txt
 enable_uart=1
 uart_2ndstage=1
 dtparam=watchdog=off
@@ -99,97 +93,29 @@ enable_jtag_gpio=1
 # AD7   J1-7    ACBUS7    (GPIOH7)    
 ```
 
-### JTAG Debugging
+## JTAG Debugging
 
 ```shell
 openocd -f interface/ftdi/um232h.cfg -f board/rpi3.cfg
 ```
 
+## Project Structure
+
+`src/`:
+- `arch/` &ndash; architecture-specific code (ARM64 boot, MMU, CPU, exception vectors)
+- `common/` &ndash; general utilities and data structures
+- `drivers/` &ndash; platform device drivers (DTB-based model)
+- `fs/` &ndash; filesystem (planned)
+- `init/` &ndash; init system (planned)
+- `ipc/` &ndash; inter-process communication (planned)
+- `kernel/` &ndash; core kernel services (scheduler, IRQ, sync, shell, logging)
+- `mm/` &ndash; physical memory management and heap
+- `net/` &ndash; networking stack (planned)
+
 ## Roadmap
 
-### Milestones (WIP)
+See [ROADMAP.md](ROADMAP.md) for the full list of completed milestones and planned features.
 
-- **v0.0.1 &ndash; Boot & Console**
-    - [ ] Basic boot for Raspberry Pi 2/3 (bring up CPU) (P0)
-    - [ ] UART console output (P0)
-    - [ ] Linker script and minimal kernel binary layout (P0)
-    - [ ] Early init logging (P1)
-
-- **v0.0.2 &ndash; Core kernel services**
-    - [ ] Exception/interrupt handling (P0)
-    - [ ] Timer/tick (P0)
-    - [ ] Basic physical memory management (P0)
-    - [ ] Simple heap allocator (P1)
-    - [ ] Framebuffer or simple display support (P2)
-
-- **v0.0.3 &ndash; Multitasking & drivers**
-    - [ ] Preemptive scheduler (P0)
-    - [ ] Context switch support (P0)
-    - [ ] GPIO and basic peripheral drivers (UART, I2C, SPI) (P1)
-    - [ ] SD card / block device driver (P2)
-
-#### 1. Early Boot (Platform-Specific)
-
-- Architecture-specific setup (assembly)
-  - Set up CPU mode (e.g., supervisor/kernel mode)
-  - MMU and paging setup
-  - Basic page table (identity mapping or early mappings)
-
-#### 2. Language Runtime Entry
-
-- Rust entry point (`kernel_main`)
-- Set up stack, global state, and runtime environment
-
-#### 3. Platform Discovery
-
-- `setup_arch()` — parse memory map, command line, early I/O
-- Parse hardware description (Device Tree, ACPI, UEFI, or custom firmware interface)
-- Hardware Abstraction Layer (HAL), e.g. use traits
-
-#### 4. Core Kernel Initialization
-
-- Memory Management
-  - Paging
-  - Heap allocation
-- Interrupts
-- Timer and Clock
-- Console and Logging
-
-#### 5. Kernel Services
-
-- Scheduler
-- Subsystems
-  - I/O
-  - Networking
-  - IPC
-
-#### 6. System Abstractions
-
-- File System (VFS, rootfs)
-- Device Drivers (based on hardware description)
-- Security (capabilities, isolation, namespaces)
-
-#### 7. Transition to User Space
-
-- Init Process (e.g., `/init`, `systemd`, or custom Rust init)
-- Switch to user mode
-- Set up syscall interface
-
-#### 8. Optional / Advanced Features
-
-- Async Rust (e.g., for drivers, networking, or task scheduling)
-- SMP (Symmetric Multi-Processing)
-- Power Management
-- Hotplug / Dynamic Device Management
-- Kernel Modules / Plugins
-- Debugging / Tracing
-
-#### 9. Future Considerations
-
-- User-space environment (shell, GUI, etc.)
-- Crash recovery, updates, sandboxing
-
-  
 ## Learning Material & Resources
 
 ### Rust
