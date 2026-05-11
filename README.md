@@ -4,6 +4,8 @@ Kruspix is a hands-on, educational bare-metal OS kernel for the Raspberry Pi, wr
 I built this project to learn OS fundamentals from the ground up &ndash; boot, memory management,
 exceptions, scheduling, and device drivers, all without an OS underneath.
 
+![kruspix demo](docs/kruspix_demo_2026_05_11.gif)
+
 ## Hardware Support
 
 - [ ] Raspberry Pi 2 Model B v1.2 (BCM2837)
