@@ -166,6 +166,18 @@ impl Mailbox for MailboxDevice {
         self.enabled.store(false, Ordering::Release);
     }
 
+    fn ready(&self) -> bool {
+        if !self.enabled.load(Ordering::Acquire) {
+            return false;
+        }
+
+        let lock = self.lock.lock_irq();
+        let status = self.get_mbox_1_status();
+        drop(lock);
+
+        (status & MBOX_STATUS_FULL) == 0
+    }
+
     fn send(&self, data: u32) -> MailboxResult<()> {
         if !self.enabled.load(Ordering::Acquire) {
             return Err(MailboxError::MailboxDisabled);
@@ -187,18 +199,6 @@ impl Mailbox for MailboxDevice {
         let msg = self.read_mbox_0();
         self.queue.lock().push_back(msg);
         Some(msg)
-    }
-
-    fn ready(&self) -> bool {
-        if !self.enabled.load(Ordering::Acquire) {
-            return false;
-        }
-
-        let lock = self.lock.lock_irq();
-        let status = self.get_mbox_1_status();
-        drop(lock);
-
-        (status & MBOX_STATUS_FULL) == 0
     }
 
     fn queue(&self) -> Arc<SpinLock<VecDeque<Self::Message>>> {

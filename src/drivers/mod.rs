@@ -264,5 +264,11 @@ fn match_driver(node: &Node) -> Option<&'static dyn PlatformDriver> {
         }
     }
 
+    kprintln!(
+        "[DEBUG] No driver matched for node {} (compatible: {:?})",
+        node.path(),
+        compatible_list
+    );
+
     None
 }
