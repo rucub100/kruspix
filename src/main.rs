@@ -11,6 +11,7 @@ use core::time::Duration;
 use kruspix::arch::cpu::{local_enable_irq_fiq, wait_for_interrupt};
 use kruspix::arch::{kernel::setup::setup_arch, mm::mmu::setup_page_tables};
 use kruspix::drivers::init_platform_drivers;
+use kruspix::drivers::get_framebuffer;
 use kruspix::kernel::cpu::init_local_data;
 use kruspix::kernel::devicetree::init_devicetree;
 use kruspix::kernel::init_modules;
@@ -35,6 +36,17 @@ pub extern "C" fn start_kernel() -> ! {
     init_platform_drivers();
     local_enable_irq_fiq();
     init_modules();
+
+    add_task("fb_smoke_test", || {
+        if let Some(fb) = get_framebuffer() {
+            fb.fill(0x0000_00FF); // solid blue (ARGB: A=0, R=0, G=0, B=255)
+            kprintln!("[fb_smoke_test] framebuffer filled with solid blue");
+        }
+
+        loop {
+            wait_for_interrupt();
+        }
+    });
 
     add_task("kernel_shell", || {
         KernelShell::new().start();

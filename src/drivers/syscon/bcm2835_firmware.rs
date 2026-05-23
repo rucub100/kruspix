@@ -17,6 +17,8 @@ use crate::kernel::sync::{OnceLock, SpinLock};
 use crate::kprintln;
 use crate::mm::virt_to_phys;
 
+use super::{FramebufferInfo, SystemFirmware, register_rpi_firmware};
+
 const MBOX_0_CH_8_ARM_VC_TAGS: u32 = 8;
 
 pub const REQUEST_CODE: u32 = 0x00000000;
@@ -1165,6 +1167,84 @@ impl RpiFirmware {
     }
 }
 
+impl SystemFirmware for RpiFirmware {
+    fn get_preferred_resolution(&self) -> Option<(u32, u32)> {
+        let mut msg = Message::new_get_edid_block(0);
+        self.property(&mut msg).ok()?;
+
+        // data[4] == 0 means the firmware successfully read the EDID block
+        if msg.data[4] != 0 {
+            return None;
+        }
+
+        // EDID data starts at data[5] (value_buffer[2] of the tag).
+        // Each u32 word holds 4 consecutive EDID bytes in little-endian order.
+        let edid_byte = |n: usize| -> u8 { ((msg.data[5 + n / 4] >> ((n % 4) * 8)) & 0xFF) as u8 };
+
+        // EDID Detailed Timing Descriptor 1 (DTD1) starts at byte 54.
+        // H active: low byte at offset 56, high nibble at offset 58 bits [7:4].
+        let h_active = (((edid_byte(58) >> 4) as u32) << 8) | (edid_byte(56) as u32);
+        // V active: low byte at offset 59, high nibble at offset 61 bits [7:4].
+        let v_active = (((edid_byte(61) >> 4) as u32) << 8) | (edid_byte(59) as u32);
+
+        if h_active == 0 || v_active == 0 || h_active > 4096 || v_active > 4096 {
+            return None;
+        }
+
+        Some((h_active, v_active))
+    }
+
+    fn init_framebuffer(&self, width: u32, height: u32, depth: u32) -> Result<FramebufferInfo, ()> {
+        let mut msg = Message::new_set_physical_width_height(width, height);
+        self.property(&mut msg)?;
+
+        let mut msg = Message::new_set_virtual_width_height(width, height);
+        self.property(&mut msg)?;
+
+        let mut msg = Message::new_set_depth(depth);
+        self.property(&mut msg)?;
+
+        // Pixel order: 0 = BGR
+        let mut msg = Message::new_set_pixel_order(0);
+        self.property(&mut msg)?;
+
+        // Alpha mode: 0 = disabled
+        let mut msg = Message::new_set_alpha_mode(0);
+        self.property(&mut msg)?;
+
+        let mut msg = Message::new_set_virtual_offset(0, 0);
+        self.property(&mut msg)?;
+
+        let mut msg = Message::new_set_overscan(0, 0, 0, 0);
+        self.property(&mut msg)?;
+
+        // Allocate buffer: alignment 4096; response gives bus_addr in data[3], size in data[4]
+        let mut msg = Message::new_allocate_buffer(4096);
+        self.property(&mut msg)?;
+        let bus_addr = msg.data[3];
+        let size = msg.data[4];
+
+        // Get pitch: response in data[3]
+        let mut msg = Message::new_get_pitch();
+        self.property(&mut msg)?;
+        let pitch = msg.data[3];
+
+        // Firmware resets context between separate messages.
+        // Calculate true dimensions to prevent MMIO out-of-bounds Data Abort.
+        let actual_height = size / pitch;
+        let actual_width = pitch / (depth / 8);
+
+        Ok(FramebufferInfo {
+            bus_addr,
+            size,
+            pitch,
+            width: actual_width,
+            height: actual_height,
+            depth,
+        })
+    }
+}
+
 impl Device for RpiFirmware {
     fn id(&self) -> &str {
         &self.id.as_str()
@@ -1180,7 +1260,7 @@ impl Device for RpiFirmware {
         self.print_info()
             .map_err(|_| DriverInitError::DeviceFailed)?;
 
-        Ok(())
+        register_rpi_firmware(self).map_err(|_| DriverInitError::DeviceFailed)
     }
 
     fn local_setup(self: Arc<Self>) -> Result<(), DriverInitError> {
@@ -1230,10 +1310,6 @@ impl PlatformDriver for RpiFirmwareDriver {
 
         dev.clone().global_setup(node)?;
 
-        RPI_FIRMWARE
-            .set(dev.clone())
-            .map_err(|_| DriverInitError::DeviceFailed)?;
-
         self.dev_registry.add_device(node.path(), dev.clone());
 
         Ok(())
@@ -1245,8 +1321,3 @@ impl PlatformDriver for RpiFirmwareDriver {
 }
 
 pub static DRIVER: RpiFirmwareDriver = RpiFirmwareDriver::new();
-
-static RPI_FIRMWARE: OnceLock<Arc<RpiFirmware>> = OnceLock::new();
-pub fn get_firmware() -> Option<Arc<RpiFirmware>> {
-    RPI_FIRMWARE.get().cloned()
-}

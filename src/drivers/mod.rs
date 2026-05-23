@@ -112,6 +112,8 @@ impl<T: Device + 'static> DriverRegistry<T> {
     }
 }
 
+pub use display::get_framebuffer;
+
 pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     // interrupt controller
     &interrupt_controller::bcm2836_l1_intc::DRIVER,
@@ -132,6 +134,8 @@ pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     &mailbox::bcm2835_mbox::DRIVER,
     // firmware
     &syscon::bcm2835_firmware::DRIVER,
+    // display
+    &display::bcm2708_fb::DRIVER,
 ];
 
 pub struct DeviceManager {
