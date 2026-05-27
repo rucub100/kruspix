@@ -533,23 +533,27 @@ impl<const WORDS: usize> Message<WORDS> {
     }
 
     #[inline]
-    const fn new_5<
+    const fn new_7<
         const N1: usize,
         const N2: usize,
         const N3: usize,
         const N4: usize,
         const N5: usize,
+        const N6: usize,
+        const N7: usize,
     >(
         tag1: Tag<N1>,
         tag2: Tag<N2>,
         tag3: Tag<N3>,
         tag4: Tag<N4>,
         tag5: Tag<N5>,
+        tag6: Tag<N6>,
+        tag7: Tag<N7>,
     ) -> Self {
         let _ = ConstChecks::<0, WORDS>::OK;
         const {
             assert!(
-                N1 + N2 + N3 + N4 + N5 <= WORDS - 4,
+                N1 + N2 + N3 + N4 + N5 + N6 + N7 <= WORDS - 4,
                 "Combined tag payloads are too large for the allocated Message size!"
             );
         }
@@ -628,6 +632,36 @@ impl<const WORDS: usize> Message<WORDS> {
         let mut i = 0;
         while i < tag5.value_buffer.len() {
             data[data_index] = tag5.value_buffer[i];
+            data_index += 1;
+            i += 1;
+        }
+
+        // Tag 6
+        data[data_index] = tag6.identifier.0;
+        data_index += 1;
+        data[data_index] = tag6.value_buffer_size;
+        data_index += 1;
+        data[data_index] = tag6.req_res_code;
+        data_index += 1;
+
+        let mut i = 0;
+        while i < tag6.value_buffer.len() {
+            data[data_index] = tag6.value_buffer[i];
+            data_index += 1;
+            i += 1;
+        }
+
+        // Tag 7
+        data[data_index] = tag7.identifier.0;
+        data_index += 1;
+        data[data_index] = tag7.value_buffer_size;
+        data_index += 1;
+        data[data_index] = tag7.req_res_code;
+        data_index += 1;
+
+        let mut i = 0;
+        while i < tag7.value_buffer.len() {
+            data[data_index] = tag7.value_buffer[i];
             data_index += 1;
             i += 1;
         }
@@ -1043,6 +1077,15 @@ impl Message<46> {
 
         let mut tag_set_depth = Tag::set_depth();
         tag_set_depth.value_buffer[0] = depth; // bits per pixel
+        
+        let mut tag_set_pixel_order = Tag::set_pixel_order();
+        tag_set_pixel_order.value_buffer[0] = 0; // 0 = BGR
+
+        let mut tag_set_overscan = Tag::set_overscan();
+        tag_set_overscan.value_buffer[0] = 0; // top
+        tag_set_overscan.value_buffer[1] = 0; // bottom
+        tag_set_overscan.value_buffer[2] = 0; // left
+        tag_set_overscan.value_buffer[3] = 0; // right
 
         let mut tag_set_virtual_offset = Tag::set_virtual_offset();
         tag_set_virtual_offset.value_buffer[0] = 0; // x
@@ -1051,10 +1094,12 @@ impl Message<46> {
         let mut tag_allocate_buffer = Tag::allocate_buffer();
         tag_allocate_buffer.value_buffer[0] = 4096; // alignment
 
-        Self::new_5(
+        Self::new_7(
             tag_set_physical_width_height,
             tag_set_virtual_width_height,
             tag_set_depth,
+            tag_set_pixel_order,
+            tag_set_overscan,
             tag_set_virtual_offset,
             tag_allocate_buffer,
         )
@@ -1306,9 +1351,9 @@ impl SystemFirmware for RpiFirmware {
     fn init_framebuffer(&self, width: u32, height: u32, depth: u32) -> Result<FramebufferInfo, ()> {
         let mut msg = Message::new_allocate_buffer(width, height, depth);
         self.property(&mut msg)?;
-
-        let bus_addr = msg.data[22];
-        let size = msg.data[23];
+        
+        let bus_addr = msg.data[33];
+        let size = msg.data[34];
 
         // Get pitch: response in data[3]
         let mut msg = Message::new_get_pitch();

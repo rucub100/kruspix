@@ -39,7 +39,7 @@ pub extern "C" fn start_kernel() -> ! {
 
     add_task("fb_smoke_test", || {
         if let Some(fb) = get_framebuffer() {
-            fb.fill(0x0000_00FF); // solid blue (ARGB: A=0, R=0, G=0, B=255)
+            fb.fill(0x0000_00FF); // solid blue (BGR byte layout: 0x00RRGGBB — B=0xFF is byte 0)
             kprintln!("[fb_smoke_test] framebuffer filled with solid blue");
         }
 

@@ -160,7 +160,7 @@ impl PlatformDriver for Bcm2708FbDriver {
 
         let firmware = get_rpi_firmware().ok_or(DriverInitError::DeviceFailed)?;
 
-        let (width, height) = firmware.get_preferred_resolution().unwrap_or((640, 480));
+        let (width, height) = firmware.get_preferred_resolution().unwrap_or((1920, 1080));
         kprintln!("[bcm2708-fb] resolution: {}x{}", width, height);
 
         let info = firmware
