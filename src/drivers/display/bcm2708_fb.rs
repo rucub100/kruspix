@@ -80,15 +80,15 @@ impl FrameBufferDevice for Bcm2708Fb {
     }
 
     fn fill(&self, color: u32) {
-        // SAFETY: The base virtual memory space fb_va is mapped valid for info.size bytes.
-        // Operating row-by-row utilizing stride casts ensures strict alignment boundary limits.
         for y in 0..self.height {
             let row_start_va = self.fb_va + (y * self.pitch) as usize;
             let row_ptr = row_start_va as *mut u32;
 
             for x in 0..self.width {
-                // SAFETY: We stay within the validated horizontal pixel boundary limit width.
-                // Row pointer offsetting handles 4-byte element increments correctly.
+                // SAFETY: Invariants validated in try_init:
+                //   - depth == 32: 4 bytes per pixel; casting fb_va offset to *mut u32 is correct.
+                //   - width * 4 <= pitch: writing x < width pixels stays within the row stride.
+                //   - height * pitch <= size: y < height ensures row_start_va is within the mapped region.
                 unsafe {
                     core::ptr::write_volatile(row_ptr.add(x as usize), color);
                 }
@@ -105,8 +105,10 @@ impl FrameBufferDevice for Bcm2708Fb {
         let row_start_va = self.fb_va + (y * self.pitch) as usize;
         let row_ptr = row_start_va as *mut u32;
 
-        // SAFETY: x coordinate is checked explicitly against screen dimensions.
-        // Stride offset computation is sound within mapped MMIO limits.
+        // SAFETY: x < self.width and y < self.height are checked above. Invariants validated in
+        //   try_init: depth == 32 (4 bytes/pixel, *mut u32 cast is correct), width * 4 <= pitch
+        //   (pixel write stays within row stride), height * pitch <= size (row_start_va is
+        //   within the mapped region).
         unsafe {
             core::ptr::write_volatile(row_ptr.add(x as usize), color);
         }
@@ -164,6 +166,24 @@ impl PlatformDriver for Bcm2708FbDriver {
         let info = firmware
             .init_framebuffer(width, height, 32)
             .map_err(|_| DriverInitError::DeviceFailed)?;
+
+        if info.depth != 32 {
+            kprintln!("[bcm2708-fb] [ERROR] unsupported framebuffer depth: {} bpp", info.depth);
+            return Err(DriverInitError::DeviceFailed);
+        }
+
+        if info.width * 4 > info.pitch
+            || info.height.checked_mul(info.pitch).map_or(true, |total| total > info.size)
+        {
+            kprintln!(
+                "[bcm2708-fb] [ERROR] inconsistent framebuffer geometry: {}x{} pitch={} size={}",
+                info.width,
+                info.height,
+                info.pitch,
+                info.size,
+            );
+            return Err(DriverInitError::DeviceFailed);
+        }
 
         kprintln!(
             "[bcm2708-fb] framebuffer: bus_addr=0x{:08x}, size={} bytes, pitch={}",

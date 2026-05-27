@@ -21,7 +21,7 @@ use super::{FramebufferInfo, SystemFirmware, register_rpi_firmware};
 
 const MBOX_0_CH_8_ARM_VC_TAGS: u32 = 8;
 
-pub const REQUEST_CODE: u32 = 0x00000000;
+const REQUEST_CODE: u32 = 0x00000000;
 const RESPONSE_CODE_SUCCESS: u32 = 0x80000000;
 const RESPONSE_CODE_ERROR: u32 = 0x80000001;
 
@@ -531,6 +531,115 @@ impl<const WORDS: usize> Message<WORDS> {
             data,
         }
     }
+
+    #[inline]
+    const fn new_5<
+        const N1: usize,
+        const N2: usize,
+        const N3: usize,
+        const N4: usize,
+        const N5: usize,
+    >(
+        tag1: Tag<N1>,
+        tag2: Tag<N2>,
+        tag3: Tag<N3>,
+        tag4: Tag<N4>,
+        tag5: Tag<N5>,
+    ) -> Self {
+        let _ = ConstChecks::<0, WORDS>::OK;
+        const {
+            assert!(
+                N1 + N2 + N3 + N4 + N5 <= WORDS - 4,
+                "Combined tag payloads are too large for the allocated Message size!"
+            );
+        }
+
+        let mut data = [0u32; WORDS];
+        let mut data_index = 0;
+
+        // Tag 1
+        data[data_index] = tag1.identifier.0;
+        data_index += 1;
+        data[data_index] = tag1.value_buffer_size;
+        data_index += 1;
+        data[data_index] = tag1.req_res_code;
+        data_index += 1;
+
+        let mut i = 0;
+        while i < tag1.value_buffer.len() {
+            data[data_index] = tag1.value_buffer[i];
+            data_index += 1;
+            i += 1;
+        }
+
+        // Tag 2
+        data[data_index] = tag2.identifier.0;
+        data_index += 1;
+        data[data_index] = tag2.value_buffer_size;
+        data_index += 1;
+        data[data_index] = tag2.req_res_code;
+        data_index += 1;
+
+        let mut i = 0;
+        while i < tag2.value_buffer.len() {
+            data[data_index] = tag2.value_buffer[i];
+            data_index += 1;
+            i += 1;
+        }
+
+        // Tag 3
+        data[data_index] = tag3.identifier.0;
+        data_index += 1;
+        data[data_index] = tag3.value_buffer_size;
+        data_index += 1;
+        data[data_index] = tag3.req_res_code;
+        data_index += 1;
+
+        let mut i = 0;
+        while i < tag3.value_buffer.len() {
+            data[data_index] = tag3.value_buffer[i];
+            data_index += 1;
+            i += 1;
+        }
+
+        // Tag 4
+        data[data_index] = tag4.identifier.0;
+        data_index += 1;
+        data[data_index] = tag4.value_buffer_size;
+        data_index += 1;
+        data[data_index] = tag4.req_res_code;
+        data_index += 1;
+
+        let mut i = 0;
+        while i < tag4.value_buffer.len() {
+            data[data_index] = tag4.value_buffer[i];
+            data_index += 1;
+            i += 1;
+        }
+
+        // Tag 5
+        data[data_index] = tag5.identifier.0;
+        data_index += 1;
+        data[data_index] = tag5.value_buffer_size;
+        data_index += 1;
+        data[data_index] = tag5.req_res_code;
+        data_index += 1;
+
+        let mut i = 0;
+        while i < tag5.value_buffer.len() {
+            data[data_index] = tag5.value_buffer[i];
+            data_index += 1;
+            i += 1;
+        }
+
+        data[data_index] = tag::END_TAG;
+
+        Self {
+            size: ((2 + WORDS) * size_of::<u32>()) as u32,
+            req_res_code: REQUEST_CODE,
+            data,
+        }
+    }
 }
 
 impl Message<14> {
@@ -578,12 +687,6 @@ impl Message<14> {
         let mut tag = Tag::set_onboard_led_status();
         tag.value_buffer[0] = pin_number;
         tag.value_buffer[1] = status;
-        Self::new(tag)
-    }
-
-    const fn new_allocate_buffer(alignment: u32) -> Self {
-        let mut tag = Tag::allocate_buffer();
-        tag.value_buffer[0] = alignment;
         Self::new(tag)
     }
 
@@ -928,6 +1031,34 @@ impl Message<46> {
         tag.value_buffer[0] = block_id;
         Self::new(tag)
     }
+
+    const fn new_allocate_buffer(width: u32, height: u32, depth: u32) -> Self {
+        let mut tag_set_physical_width_height = Tag::set_physical_width_height();
+        tag_set_physical_width_height.value_buffer[0] = width;
+        tag_set_physical_width_height.value_buffer[1] = height;
+
+        let mut tag_set_virtual_width_height = Tag::set_virtual_width_height();
+        tag_set_virtual_width_height.value_buffer[0] = width;
+        tag_set_virtual_width_height.value_buffer[1] = height;
+
+        let mut tag_set_depth = Tag::set_depth();
+        tag_set_depth.value_buffer[0] = depth; // bits per pixel
+
+        let mut tag_set_virtual_offset = Tag::set_virtual_offset();
+        tag_set_virtual_offset.value_buffer[0] = 0; // x
+        tag_set_virtual_offset.value_buffer[1] = 0; // y
+
+        let mut tag_allocate_buffer = Tag::allocate_buffer();
+        tag_allocate_buffer.value_buffer[0] = 4096; // alignment
+
+        Self::new_5(
+            tag_set_physical_width_height,
+            tag_set_virtual_width_height,
+            tag_set_depth,
+            tag_set_virtual_offset,
+            tag_allocate_buffer,
+        )
+    }
 }
 
 impl Message<318> {
@@ -1169,68 +1300,21 @@ impl RpiFirmware {
 
 impl SystemFirmware for RpiFirmware {
     fn get_preferred_resolution(&self) -> Option<(u32, u32)> {
-        let mut msg = Message::new_get_edid_block(0);
-        self.property(&mut msg).ok()?;
-
-        // data[4] == 0 means the firmware successfully read the EDID block
-        if msg.data[4] != 0 {
-            return None;
-        }
-
-        // EDID data starts at data[5] (value_buffer[2] of the tag).
-        // Each u32 word holds 4 consecutive EDID bytes in little-endian order.
-        let edid_byte = |n: usize| -> u8 { ((msg.data[5 + n / 4] >> ((n % 4) * 8)) & 0xFF) as u8 };
-
-        // EDID Detailed Timing Descriptor 1 (DTD1) starts at byte 54.
-        // H active: low byte at offset 56, high nibble at offset 58 bits [7:4].
-        let h_active = (((edid_byte(58) >> 4) as u32) << 8) | (edid_byte(56) as u32);
-        // V active: low byte at offset 59, high nibble at offset 61 bits [7:4].
-        let v_active = (((edid_byte(61) >> 4) as u32) << 8) | (edid_byte(59) as u32);
-
-        if h_active == 0 || v_active == 0 || h_active > 4096 || v_active > 4096 {
-            return None;
-        }
-
-        Some((h_active, v_active))
+        None
     }
 
     fn init_framebuffer(&self, width: u32, height: u32, depth: u32) -> Result<FramebufferInfo, ()> {
-        let mut msg = Message::new_set_physical_width_height(width, height);
+        let mut msg = Message::new_allocate_buffer(width, height, depth);
         self.property(&mut msg)?;
 
-        let mut msg = Message::new_set_virtual_width_height(width, height);
-        self.property(&mut msg)?;
-
-        let mut msg = Message::new_set_depth(depth);
-        self.property(&mut msg)?;
-
-        // Pixel order: 0 = BGR
-        let mut msg = Message::new_set_pixel_order(0);
-        self.property(&mut msg)?;
-
-        // Alpha mode: 0 = disabled
-        let mut msg = Message::new_set_alpha_mode(0);
-        self.property(&mut msg)?;
-
-        let mut msg = Message::new_set_virtual_offset(0, 0);
-        self.property(&mut msg)?;
-
-        let mut msg = Message::new_set_overscan(0, 0, 0, 0);
-        self.property(&mut msg)?;
-
-        // Allocate buffer: alignment 4096; response gives bus_addr in data[3], size in data[4]
-        let mut msg = Message::new_allocate_buffer(4096);
-        self.property(&mut msg)?;
-        let bus_addr = msg.data[3];
-        let size = msg.data[4];
+        let bus_addr = msg.data[22];
+        let size = msg.data[23];
 
         // Get pitch: response in data[3]
         let mut msg = Message::new_get_pitch();
         self.property(&mut msg)?;
         let pitch = msg.data[3];
 
-        // Firmware resets context between separate messages.
-        // Calculate true dimensions to prevent MMIO out-of-bounds Data Abort.
         let actual_height = size / pitch;
         let actual_width = pitch / (depth / 8);
 
