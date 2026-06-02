@@ -6,7 +6,10 @@ use alloc::sync::Arc;
 use crate::kernel::sync::OnceLock;
 
 pub mod bcm2708_fb;
+pub mod drawing;
 pub mod edid;
+pub mod fb_console;
+pub mod font;
 
 /// Trait for a memory-mapped framebuffer device.
 pub trait FrameBufferDevice: Send + Sync {

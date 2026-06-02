@@ -14,6 +14,7 @@ use crate::kprintln;
 use crate::mm::map_io_region;
 
 use super::{FrameBufferDevice, register_framebuffer};
+use super::fb_console::FbConsole;
 
 /// Strips the VideoCore bus alias bits from a firmware-reported framebuffer address.
 ///
@@ -53,8 +54,13 @@ impl Device for Bcm2708Fb {
         self.id.as_str()
     }
 
-    fn global_setup(self: Arc<Self>, _node: &Node) -> Result<(), DriverInitError> {
-        register_framebuffer(self).map_err(|_| DriverInitError::DeviceFailed)
+    fn global_setup(self: Arc<Self>, node: &Node) -> Result<(), DriverInitError> {
+        let id = self.id.clone();
+        let fb_dev = self.clone() as Arc<dyn FrameBufferDevice>;
+        register_framebuffer(self).map_err(|_| DriverInitError::DeviceFailed)?;
+        let console = Arc::new(FbConsole::new(alloc::format!("{}/console", id), fb_dev));
+        console.global_setup(node)?;
+        Ok(())
     }
 
     fn local_setup(self: Arc<Self>) -> Result<(), DriverInitError> {

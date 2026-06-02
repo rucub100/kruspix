@@ -1351,7 +1351,15 @@ impl SystemFirmware for RpiFirmware {
     fn init_framebuffer(&self, width: u32, height: u32, depth: u32) -> Result<FramebufferInfo, ()> {
         let mut msg = Message::new_allocate_buffer(width, height, depth);
         self.property(&mut msg)?;
-        
+
+        // The SET_PHYSICAL_WIDTH_HEIGHT response (tag 1) contains the actual display
+        // dimensions as set by the firmware. The firmware may allocate a buffer larger
+        // than the visible display (e.g. due to alignment padding), so deriving dimensions
+        // from size/pitch can produce a height greater than the physical display height,
+        // causing the last text row to be rendered below the visible area.
+        let actual_width = msg.data[3];
+        let actual_height = msg.data[4];
+
         let bus_addr = msg.data[33];
         let size = msg.data[34];
 
@@ -1359,9 +1367,6 @@ impl SystemFirmware for RpiFirmware {
         let mut msg = Message::new_get_pitch();
         self.property(&mut msg)?;
         let pitch = msg.data[3];
-
-        let actual_height = size / pitch;
-        let actual_width = pitch / (depth / 8);
 
         Ok(FramebufferInfo {
             bus_addr,

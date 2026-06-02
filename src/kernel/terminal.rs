@@ -71,6 +71,7 @@ impl SystemTerminal {
 
     pub fn write(&self, bytes: &[u8]) {
         self.output.write(bytes);
+        write_to_secondary_outputs(self.output.id(), bytes);
     }
 
     fn line_discipline(&self, byte: u8) -> Option<Vec<u8>> {
@@ -81,6 +82,7 @@ impl SystemTerminal {
             b'\n' | b'\r' => {
                 if state.echo {
                     self.output.write(&[b'\r', b'\n']);
+                    write_to_secondary_outputs(self.output.id(), &[b'\r', b'\n']);
                 }
                 let line = state.line_buffer.clone();
                 state.line_buffer.clear();
@@ -92,6 +94,7 @@ impl SystemTerminal {
                     state.line_buffer.pop();
                     if state.echo {
                         self.output.write(b"\x08 \x08");
+                        write_to_secondary_outputs(self.output.id(), b"\x08 \x08");
                     }
                 }
                 None
@@ -101,6 +104,7 @@ impl SystemTerminal {
                 state.line_buffer.push(byte);
                 if state.echo {
                     self.output.write(&[byte]);
+                    write_to_secondary_outputs(self.output.id(), &[byte]);
                 }
                 None
             }
@@ -112,6 +116,21 @@ impl SystemTerminal {
 
 pub fn get_system_terminal() -> Option<&'static SystemTerminal> {
     SYSTEM_TERMINAL.get()
+}
+
+/// Writes `bytes` to every registered output device whose [`Device::id`] differs
+/// from `primary_id`.
+///
+/// This lets [`SystemTerminal`] mirror all output to secondary devices (e.g.
+/// the framebuffer console) without double-writing to the primary UART device.
+/// Uses `lock_irq` so it is safe to call from IRQ-disabled contexts.
+fn write_to_secondary_outputs(primary_id: &str, bytes: &[u8]) {
+    let outputs = OUTPUT_DEVICES.lock_irq();
+    for output in outputs.iter() {
+        if output.id() != primary_id {
+            output.write(bytes);
+        }
+    }
 }
 
 pub fn register_input(dev: Arc<dyn InputDevice>) {
