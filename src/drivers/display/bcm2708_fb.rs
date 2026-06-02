@@ -30,6 +30,7 @@ struct Bcm2708Fb {
     id: String,
     /// Mapped virtual address of the framebuffer, returned by `map_io_region()`.
     fb_va: usize,
+    bus_addr: u32,
     width: u32,
     height: u32,
     pitch: u32,
@@ -41,6 +42,7 @@ impl Bcm2708Fb {
         Self {
             id,
             fb_va,
+            bus_addr: info.bus_addr,
             width: info.width,
             height: info.height,
             pitch: info.pitch,
@@ -79,6 +81,10 @@ impl FrameBufferDevice for Bcm2708Fb {
 
     fn pitch(&self) -> u32 {
         self.pitch
+    }
+
+    fn bus_addr(&self) -> u32 {
+        self.bus_addr
     }
 
     fn depth_bpp(&self) -> u32 {

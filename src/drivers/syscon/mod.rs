@@ -20,6 +20,8 @@ pub struct FramebufferInfo {
 pub trait SystemFirmware: Send + Sync {
     fn get_preferred_resolution(&self) -> Option<(u32, u32)>;
 
+    fn get_dma_channels(&self) -> Result<u32, ()>;
+
     fn init_framebuffer(&self, width: u32, height: u32, depth: u32) -> Result<FramebufferInfo, ()>;
 }
 

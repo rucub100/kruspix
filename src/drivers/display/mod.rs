@@ -23,6 +23,9 @@ pub trait FrameBufferDevice: Send + Sync {
     /// Crucial for calculating offset mappings when width != stride.
     fn pitch(&self) -> u32;
 
+    /// Returns the DMA-visible bus address of the start of the framebuffer.
+    fn bus_addr(&self) -> u32;
+
     /// Returns the bits-per-pixel depth (e.g., 16, 24, 32).
     fn depth_bpp(&self) -> u32;
 

@@ -39,6 +39,16 @@ impl DrawingContext {
         self.fb.height()
     }
 
+    /// Scanline pitch of the underlying framebuffer in bytes.
+    pub fn pitch(&self) -> u32 {
+        self.fb.pitch()
+    }
+
+    /// DMA-visible bus address of the underlying framebuffer.
+    pub fn bus_addr(&self) -> u32 {
+        self.fb.bus_addr()
+    }
+
     /// Fills a rectangle with `color` (0xAARRGGBB).
     ///
     /// The rectangle is clamped to the framebuffer boundary. Out-of-bounds

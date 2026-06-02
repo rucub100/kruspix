@@ -113,6 +113,7 @@ impl<T: Device + 'static> DriverRegistry<T> {
 }
 
 pub use display::get_framebuffer;
+pub use dma_controller::{Dma2DTransfer, DmaEngine, DmaError, get_dma_engine};
 
 pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     // interrupt controller
@@ -134,6 +135,8 @@ pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     &mailbox::bcm2835_mbox::DRIVER,
     // firmware
     &syscon::bcm2835_firmware::DRIVER,
+    // dma
+    &dma_controller::bcm2835_dma::DRIVER,
     // display
     &display::bcm2708_fb::DRIVER,
 ];

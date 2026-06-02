@@ -1348,6 +1348,10 @@ impl SystemFirmware for RpiFirmware {
         None
     }
 
+    fn get_dma_channels(&self) -> Result<u32, ()> {
+        RpiFirmware::get_dma_channels(self)
+    }
+
     fn init_framebuffer(&self, width: u32, height: u32, depth: u32) -> Result<FramebufferInfo, ()> {
         let mut msg = Message::new_allocate_buffer(width, height, depth);
         self.property(&mut msg)?;
