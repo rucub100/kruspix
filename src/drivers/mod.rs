@@ -139,6 +139,8 @@ pub const PLATFORM_DRIVERS: &[&dyn PlatformDriver] = &[
     &dma_controller::bcm2835_dma::DRIVER,
     // display
     &display::bcm2708_fb::DRIVER,
+    // usb
+    &usb::bcm2708_usb::DRIVER,
 ];
 
 pub struct DeviceManager {

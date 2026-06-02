@@ -24,6 +24,8 @@ const MBOX_0_CH_8_ARM_VC_TAGS: u32 = 8;
 const REQUEST_CODE: u32 = 0x00000000;
 const RESPONSE_CODE_SUCCESS: u32 = 0x80000000;
 const RESPONSE_CODE_ERROR: u32 = 0x80000001;
+const POWER_STATE_ON: u32 = 1 << 0;
+const POWER_STATE_NO_DEVICE: u32 = 1 << 1;
 
 pub mod tag {
     pub const END_TAG: u32 = 0x00000000;
@@ -1287,6 +1289,28 @@ impl RpiFirmware {
         Ok(msg.data[3])
     }
 
+    pub fn get_power_state(&self, device_id: u32) -> Result<u32, ()> {
+        let mut msg = Message::new_get_power_state(device_id);
+        self.property(&mut msg)?;
+        Ok(msg.data[4])
+    }
+
+    pub fn set_power_state(&self, device_id: u32, state: u32) -> Result<u32, ()> {
+        let mut msg = Message::new_set_power_state(device_id, state);
+        self.property(&mut msg)?;
+
+        let returned_state = msg.data[4];
+        if (returned_state & POWER_STATE_NO_DEVICE) != 0 {
+            return Err(());
+        }
+
+        if (state & POWER_STATE_ON) != 0 && (returned_state & POWER_STATE_ON) == 0 {
+            return Err(());
+        }
+
+        Ok(returned_state)
+    }
+
     fn print_info(&self) -> Result<(), ()> {
         let firmware_revision = self.get_firmware_revision()?;
         kprintln!("Firmware revision: {:#x}", firmware_revision);
@@ -1350,6 +1374,14 @@ impl SystemFirmware for RpiFirmware {
 
     fn get_dma_channels(&self) -> Result<u32, ()> {
         RpiFirmware::get_dma_channels(self)
+    }
+
+    fn get_power_state(&self, device_id: u32) -> Result<u32, ()> {
+        RpiFirmware::get_power_state(self, device_id)
+    }
+
+    fn set_power_state(&self, device_id: u32, state: u32) -> Result<u32, ()> {
+        RpiFirmware::set_power_state(self, device_id, state)
     }
 
     fn init_framebuffer(&self, width: u32, height: u32, depth: u32) -> Result<FramebufferInfo, ()> {

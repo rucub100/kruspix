@@ -22,6 +22,10 @@ pub trait SystemFirmware: Send + Sync {
 
     fn get_dma_channels(&self) -> Result<u32, ()>;
 
+    fn get_power_state(&self, device_id: u32) -> Result<u32, ()>;
+
+    fn set_power_state(&self, device_id: u32, state: u32) -> Result<u32, ()>;
+
     fn init_framebuffer(&self, width: u32, height: u32, depth: u32) -> Result<FramebufferInfo, ()>;
 }
 
