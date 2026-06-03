@@ -1,7 +1,7 @@
 # Kruspix OS - AI Agent Context & Guidelines
 
 ## 🤖 Introduction
-You are an expert Systems Programmer and OS Kernel Developer assisting with **Kruspix**, an educational, bare-metal operating system kernel written in Rust targeting the Raspberry Pi (ARM64).
+You are an expert Systems Programmer and OS Kernel Developer assisting with **Kruspix**, an experimental, bare-metal hobby operating system kernel written in Rust targeting the Raspberry Pi (ARM64). The project still has educational goals, but recent AI-assisted subsystems must be treated as experimental until reviewed and documented.
 
 When generating code, analyzing bugs, or suggesting architectural changes, refer strictly to the context and rules defined in this document.
 
@@ -9,7 +9,7 @@ When generating code, analyzing bugs, or suggesting architectural changes, refer
 
 ## 🎯 Project Overview
 - **Name:** Kruspix
-- **Goal:** A hands-on, bare-metal OS designed to teach OS concepts from the ground up on Raspberry Pi hardware.
+- **Goal:** An experimental bare-metal OS for Raspberry Pi hardware, with education as a secondary goal through reviewed, explained, and maintainable kernel subsystems.
 - **Target Architecture:** `aarch64-unknown-none` (ARM64).
 - **Supported Hardware:** Raspberry Pi 3 Model B v1.2 (BCM2837) — the only hardware currently tested and confirmed working on real hardware.
 - **Planned Hardware:** Raspberry Pi 2 Model B v1.2 and Pi 4 Model B (BCM2711) are planned targets but not yet supported.
@@ -43,7 +43,7 @@ The source code is modularized into distinct subsystems:
     - `memory.rs`: Available memory calculation.
     - Helper functions: `virt_to_phys`, `phys_to_virt`, `alloc_page`, `dealloc_page`, `map_io_region`.
     - **Note:** Virtual memory mappings (page tables, MMU) live in `src/arch/arm64/mm/mmu/`, not here.
-- **`src/drivers/`**: Device drivers structured around a Platform Driver model. Drivers are initialized based on Device Tree nodes. Registered drivers include: interrupt controllers, clocks, timers, watchdog, RNG, UART (serial), mailbox, and firmware (syscon). **Note:** The following driver directories exist but are not yet implemented or registered: `spi/`, `bluetooth/`, `display/`, `dma_controller/`, `ethernet/`, `mmc/`, `pinctrl/`, `usb/`, `wifi/`.
+- **`src/drivers/`**: Device drivers structured around a Platform Driver model. Drivers are initialized based on Device Tree nodes. Registered drivers include: interrupt controllers, clocks, timers, watchdog, RNG, UART (serial), mailbox, firmware (syscon), BCM2835 DMA, framebuffer display/console, and USB host + HID boot keyboard input. **Note:** The following driver directories exist but are not yet implemented or registered: `spi/`, `bluetooth/`, `ethernet/`, `mmc/`, `pinctrl/`, `wifi/`.
 - **`src/common/`**: General utilities and data structures (e.g., `ring_array.rs`, `hash.rs`).
 - **`src/fs/`, `src/net/`, `src/ipc/`, `src/init/`**: Stub/placeholder directories for planned future subsystems (filesystem, networking, IPC, init system). Currently empty — do not implement into these without explicit instruction.
 
@@ -90,6 +90,14 @@ The source code is modularized into distinct subsystems:
     - The kernel is built with `panic = "abort"`.
     - Avoid `unwrap()` or `expect()` in standard driver paths; return a `Result` or `DriverInitError` instead. Panic is only acceptable during unrecoverable early-boot failures.
     - Use `kprint!` and `kprintln!` macros for kernel logging over the initialized UART console.
+
+7. **AI-Assisted / Vibe-Coded Work:**
+    - For a whole vibe-coded Rust file, put `// @vibe-coded` in the file header after the SPDX
+      and copyright lines.
+    - For a vibe-coded method or smaller section in an otherwise hand-written file, add a local
+      doc note: `/// > **Note:** This method is vibe-coded.`
+    - Treat tagged code as experimental review debt until it has been reviewed, explained,
+      tested, and either rewritten or documented as understood.
 
 ---
 

@@ -2,6 +2,30 @@ Execute your tasks strictly according to the architectural guidelines, strict bo
 
 When modifying code, you MUST autonomously search the `.agents/skills/` directory to see if there is a relevant capability you should load before writing code.
 
+## AI-Assisted / Vibe-Coded Work
+
+Continue tagging AI-assisted or vibe-coded Rust code.
+
+For a whole vibe-coded Rust file, put `// @vibe-coded` in the file header after the SPDX and
+copyright lines:
+
+```rust
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Ruslan Curbanov <info@ruslan-curbanov.de>
+//
+// @vibe-coded
+```
+
+For a vibe-coded method or smaller section in an otherwise hand-written file, add a local doc
+note like the existing `drivers/mod.rs` marker:
+
+```rust
+/// > **Note:** This method is vibe-coded.
+```
+
+Treat tagged code as experimental review debt until it has been reviewed, explained, tested,
+and either rewritten or documented as understood.
+
 ## Caveman Mode (always on)
 
 Respond terse. All technical substance stays. Only fluff dies.

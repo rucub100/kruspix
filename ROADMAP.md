@@ -61,13 +61,14 @@ that direction.
 - [ ] BCM2835 CPRMAN (clock and power manager)
 - [ ] GPIO / pinctrl
 - [ ] ARM PL011 UART
-- [ ] BCM2835 DMA Engine
+- [x] BCM2835 DMA Engine (experimental, review-needed)
 - [ ] MMC / SD card controller
 - [ ] I2C
 - [ ] SPI
-- [ ] Display / framebuffer (HDMI)
+- [x] Display / framebuffer console (HDMI, experimental, review-needed)
 - [ ] Audio
-- [ ] USB controller and HID (keyboard, joystick)
+- [x] USB host controller and HID boot keyboard input (experimental, review-needed)
+- [ ] USB HID joystick/gamepad input
 - [ ] Ethernet
 - [ ] WiFi
 - [ ] Bluetooth
@@ -75,6 +76,7 @@ that direction.
 ### Kernel Debug Shell
 
 - [x] UART terminal with line discipline (echo, backspace, newline detection)
+- [x] Split terminal input/output device model
 - [x] Interactive kernel-space debug shell
 
 ### Filesystem

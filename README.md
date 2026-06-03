@@ -1,15 +1,28 @@
 # kruspix
 
-Kruspix is a hands-on, educational bare-metal OS kernel for the Raspberry Pi, written in Rust.
-I built this project to learn OS fundamentals from the ground up &ndash; boot, memory management,
-exceptions, scheduling, and device drivers, all without an OS underneath.
+Kruspix is an experimental bare-metal hobby OS kernel for the Raspberry Pi, written in Rust.
+It is also a learning project: the codebase explores OS fundamentals from the ground up &ndash;
+boot, memory management, exceptions, scheduling, and device drivers, all without an OS
+underneath.
 
 ![kruspix demo](docs/kruspix_demo_2026_05_11.gif)
+
+## Current Status
+
+Kruspix currently targets the Raspberry Pi 3 Model B v1.2 (BCM2837). The kernel boots into
+a preemptive, single-core environment with virtual memory, heap allocation, device-tree based
+platform drivers, UART logging, an interactive debug shell, framebuffer output, DMA-assisted
+framebuffer scrolling, and USB HID boot-keyboard input.
+
+Some recent driver work, especially the framebuffer console, DMA support, and USB keyboard
+stack, was implemented with heavy AI assistance and is treated as experimental. These areas
+work as project milestones, but still need review, cleanup, testing, and explanatory
+documentation before they fully serve the project's educational goals.
 
 ## Hardware Support
 
 - [ ] Raspberry Pi 2 Model B v1.2 (BCM2837)
-- [X] Raspberry Pi 3 Model B v1.2 (BCM2837)
+- [x] Raspberry Pi 3 Model B v1.2 (BCM2837)
 - [ ] Raspberry Pi 4 Model B (BCM2711)
 - [ ] Raspberry Pi 5 (BCM2712)
 
@@ -106,7 +119,8 @@ openocd -f interface/ftdi/um232h.cfg -f board/rpi3.cfg
 `src/`:
 - `arch/` &ndash; architecture-specific code (ARM64 boot, MMU, CPU, exception vectors)
 - `common/` &ndash; general utilities and data structures
-- `drivers/` &ndash; platform device drivers (DTB-based model)
+- `drivers/` &ndash; platform device drivers (DTB-based model, including UART, timers,
+  watchdog, RNG, mailbox/firmware, DMA, framebuffer display, and USB keyboard support)
 - `fs/` &ndash; filesystem (planned)
 - `init/` &ndash; init system (planned)
 - `ipc/` &ndash; inter-process communication (planned)
