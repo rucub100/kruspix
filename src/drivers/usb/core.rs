@@ -52,6 +52,7 @@ pub const USB_HID_PROTOCOL_KEYBOARD: u8 = 0x01;
 pub const USB_HUB_PORT_RESET: u16 = 0x0004;
 pub const USB_HUB_PORT_POWER: u16 = 0x0008;
 pub const USB_HID_SET_PROTOCOL: u8 = 0x0B;
+pub const USB_HID_SET_IDLE: u8 = 0x0A;
 pub const USB_HID_PROTOCOL_BOOT: u16 = 0x0000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -592,6 +593,10 @@ pub trait UsbHostController: Device {
     fn cancel_interrupt_in(&self, _route: UsbRoute, _endpoint: EndpointAddress) -> UsbResult<()> {
         Err(UsbError::Unsupported)
     }
+    /// Drive any background interrupt transfers (re-arm due polls, run the in-flight watchdog).
+    /// Intended to be called periodically from a dedicated task so servicing is not coupled to
+    /// the input-consuming loop. Default is a no-op for controllers that do not need it.
+    fn poll_interrupt_transfers(&self) {}
 }
 
 fn read_u16_le(bytes: &[u8], offset: usize) -> Option<u16> {
@@ -894,6 +899,30 @@ pub fn set_protocol(
         USB_REQ_TYPE_CLASS | USB_REQ_RECIP_INTERFACE,
         USB_HID_SET_PROTOCOL,
         protocol,
+        u16::from(interface_number),
+    )
+}
+
+/// Issue a HID SET_IDLE request. `duration_units` is in 4 ms steps (0 = report only on
+/// change, non-zero = also re-report the current state every `duration_units * 4` ms).
+/// Periodic re-reporting makes a missed key-up edge self-heal: every subsequent poll
+/// carries the current (released) state instead of relying on a single transient edge.
+pub fn set_idle(
+    controller: &dyn UsbHostController,
+    route: UsbRoute,
+    max_packet_size: u16,
+    interface_number: u8,
+    duration_units: u8,
+    report_id: u8,
+) -> UsbResult<()> {
+    let value = (u16::from(duration_units) << 8) | u16::from(report_id);
+    control_no_data(
+        controller,
+        route,
+        max_packet_size,
+        USB_REQ_TYPE_CLASS | USB_REQ_RECIP_INTERFACE,
+        USB_HID_SET_IDLE,
+        value,
         u16::from(interface_number),
     )
 }

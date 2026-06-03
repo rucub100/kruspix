@@ -30,6 +30,16 @@ mod usb;
 mod watchdog;
 mod wifi;
 
+/// Drive background USB interrupt transfers (re-arm due polls and run the in-flight watchdog).
+/// Called from a dedicated task so keyboard servicing is decoupled from the input-consuming
+/// terminal loop, which can stall during heavy console output.
+pub fn poll_usb_input() {
+    use usb::UsbHostController;
+    if let Some(controller) = usb::get_host_controller() {
+        controller.poll_interrupt_transfers();
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum DriverInitError {
     DeviceReserved,

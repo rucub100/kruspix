@@ -7,7 +7,7 @@ extern crate alloc;
 
 use kruspix::arch::cpu::{local_enable_irq_fiq, wait_for_interrupt};
 use kruspix::arch::{kernel::setup::setup_arch, mm::mmu::setup_page_tables};
-use kruspix::drivers::init_platform_drivers;
+use kruspix::drivers::{init_platform_drivers, poll_usb_input};
 use kruspix::kernel::cpu::init_local_data;
 use kruspix::kernel::devicetree::init_devicetree;
 use kruspix::kernel::init_modules;
@@ -30,6 +30,13 @@ pub extern "C" fn start_kernel() -> ! {
     init_platform_drivers();
     local_enable_irq_fiq();
     init_modules();
+
+    add_task("usb_input", || {
+        loop {
+            poll_usb_input();
+            wait_for_interrupt();
+        }
+    });
 
     add_task("kernel_shell", || {
         KernelShell::new().start();
