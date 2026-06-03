@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Ruslan Curbanov <info@ruslan-curbanov.de>
+//
+// @vibe-coded
 
 //! Software drawing primitives for a 32-bpp framebuffer.
 //!

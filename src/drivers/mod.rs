@@ -33,6 +33,7 @@ mod wifi;
 /// Drive background USB interrupt transfers (re-arm due polls and run the in-flight watchdog).
 /// Called from a dedicated task so keyboard servicing is decoupled from the input-consuming
 /// terminal loop, which can stall during heavy console output.
+/// > **Note:** This method is vibe-coded.
 pub fn poll_usb_input() {
     use usb::UsbHostController;
     if let Some(controller) = usb::get_host_controller() {

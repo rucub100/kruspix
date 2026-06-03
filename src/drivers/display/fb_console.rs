@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Ruslan Curbanov <info@ruslan-curbanov.de>
+//
+// @vibe-coded
 
 //! Framebuffer console that mirrors all output to the HDMI display.
 //!

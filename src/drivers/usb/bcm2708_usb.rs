@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Ruslan Curbanov <info@ruslan-curbanov.de>
+//
+// @vibe-coded
 
 //! BCM2708 USB host-controller driver for the Raspberry Pi 3.
 //!
